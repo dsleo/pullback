@@ -1,0 +1,174 @@
+# Mathgent
+
+Agentic lemma search over arXiv LaTeX sources.
+
+## Stack
+- PydanticAI (Librarian + Forager)
+- FastAPI (API)
+- Discovery: OpenAlex semantic search, Exa fallback
+- arXiv metadata resolution via `arxiv` Python package
+- E2B Code Interpreter (sandbox source fetch + shell extraction)
+- Reranking: ModernColBERT / BGE / token overlap
+- Observability: Logfire + Loguru (console + file)
+
+## Refactored Architecture
+
+- `src/mathgent/api/`
+  - App factory, middleware, route wiring, dependency construction
+- `src/mathgent/settings.py`
+  - Centralized env/settings parsing
+- `src/mathgent/models/`
+  - API schemas and domain models
+- `src/mathgent/discovery/`
+  - `base.py`: provider protocol + errors (standard provider interface)
+  - `pipeline.py`: provider chaining, timeout, interleave, dedupe
+  - `providers/openalex.py`: semantic OpenAlex provider adapter
+  - `providers/exa.py`: Exa provider adapter (`exa-py`)
+  - `arxiv_title_resolver.py`: OpenAlex title -> arXiv ID resolution
+  - `parsing/arxiv_ids.py`: arXiv ID extraction/normalization helpers
+- `src/mathgent/extraction/`
+  - Header extraction, environment block extraction, parsing helpers
+- `src/mathgent/tools/`
+  - Agent-facing tool facades (`discovery.py`, `extraction.py`) used by PydanticAI agents
+- `src/mathgent/sandbox/`
+  - Sandbox interface + local/E2B implementations + source-fetch script generator
+- `src/mathgent/agents/`
+  - Forager agent + pluggable header selector strategy (heuristic or LLM)
+- `src/mathgent/orchestration/`
+  - Librarian orchestrator + dedicated query-planning, discovery-execution, and result-policy services
+- `src/mathgent/rerank/`
+  - `base.py`: reranker protocol
+  - `backends.py`: concrete reranker backends (token/bge/colbert)
+  - `factory.py`: strategy selection
+- `src/mathgent/observability/`
+  - Logging + tracing setup
+
+## API
+
+### Endpoint
+- `POST /search`
+- The app builds one orchestrator per FastAPI lifespan (not per request), so provider clients/sandbox wiring are reused.
+- Runtime errors are sanitized to stable API messages (`provider unavailable`, `source unavailable`, `internal error`).
+
+### Input
+```json
+{
+  "query": "Banach fixed point theorem for non-reflexive spaces",
+  "max_results": 3,
+  "strictness": 0.2
+}
+```
+
+### Output
+```json
+{
+  "query": "...",
+  "max_results": 3,
+  "strictness": 0.2,
+  "results": [
+    {
+      "arxiv_id": "2401.00001",
+      "title": "Some Paper Title",
+      "authors": ["First Author", "Second Author"],
+      "match": {
+        "arxiv_id": "2401.00001",
+        "line_number": 123,
+        "header_line": "\\begin{lemma}...",
+        "snippet": "...",
+        "score": 0.87
+      }
+    }
+  ]
+}
+```
+
+## Discovery Configuration
+
+### Core
+- `MATHGENT_DISCOVERY_ORDER=openalex,exa`
+- `MATHGENT_PROVIDER_TIMEOUT_SECONDS=8.0`
+- `MATHGENT_DISCOVERY_MAX_RETRIES=3`
+- `MATHGENT_DISCOVERY_BACKOFF_SECONDS=1.0`
+
+### OpenAlex (semantic-only)
+- `OPENALEX_API_KEY`
+- `OPENALEX_MAILTO` (recommended)
+- `MATHGENT_OPENALEX_TIMEOUT_SECONDS=20.0`
+- `MATHGENT_OPENALEX_TITLE_RESOLUTION=1`
+- `MATHGENT_OPENALEX_TITLE_MATCH_THRESHOLD=0.90`
+- `MATHGENT_OPENALEX_TITLE_RESOLUTION_LIMIT=4`
+- `MATHGENT_OPENALEX_ARXIV_QUERY_MAX_RESULTS=5`
+- `MATHGENT_OPENALEX_ARXIV_QUERY_DELAY_SECONDS=0.5`
+
+### Exa
+- `EXA_API_KEY`
+- `MATHGENT_EXA_TIMEOUT_SECONDS=20.0`
+
+## Agent/Orchestration Configuration
+- `MATHGENT_LIBRARIAN_MODEL=test`
+- `MATHGENT_FORAGER_MODEL=test`
+- `MATHGENT_FORAGER_USE_LLM_HEADER_PICK=0`
+- `MATHGENT_SELECTOR_REQUEST_LIMIT=3`
+- `MATHGENT_SELECTOR_TOTAL_TOKENS_LIMIT` (optional)
+- `MATHGENT_AGENTIC_QUERY_LOOP=1`
+- `MATHGENT_AGENTIC_DISCOVERY=1`
+- `MATHGENT_MAX_QUERY_ATTEMPTS=2`
+- `MATHGENT_MAX_REPLAN_ROUNDS=2` (outer loop: if no matches, replan query and retry)
+- `MATHGENT_QUERY_PLANNER_TIMEOUT_SECONDS=4.0`
+- `MATHGENT_QUERY_PLANNER_MODEL` (optional)
+- `MATHGENT_PLANNER_REQUEST_LIMIT=4`
+- `MATHGENT_PLANNER_TOTAL_TOKENS_LIMIT` (optional)
+- `MATHGENT_DISCOVERY_REQUEST_LIMIT=4`
+- `MATHGENT_DISCOVERY_TOTAL_TOKENS_LIMIT` (optional)
+- `MATHGENT_CANDIDATE_MULTIPLIER=2`
+- `MATHGENT_CANDIDATE_CAP=30`
+- `MATHGENT_DELEGATE_CONCURRENCY=4`
+- `MATHGENT_EARLY_STOP_ON_MATCHES=1`
+
+## Sandbox Configuration
+- `MATHGENT_LOCAL_TEX_DIR=/path/to/tex` (optional local mode)
+- If unset, E2B sandbox mode is used.
+
+## Reranker Configuration
+- `MATHGENT_RERANKER=auto` (`auto|token|bge|colbert`)
+- `MATHGENT_COLBERT_ENDPOINT=http://127.0.0.1:8001/rerank`
+- `MATHGENT_BGE_MODEL=BAAI/bge-reranker-v2-m3`
+
+## Logging/Tracing
+- `MATHGENT_ENABLE_LOGFIRE=1`
+- `MATHGENT_LOGFIRE_SEND=0`
+- `MATHGENT_PYDANTICAI_INSTRUMENT=1`
+- `MATHGENT_LOG_LEVEL=INFO`
+- `MATHGENT_LOG_JSON=0`
+- `MATHGENT_LOG_FILE_ENABLED=1`
+- `MATHGENT_LOG_FILE=logs/mathgent.log`
+- `MATHGENT_LOG_FILE_ROTATION=20 MB`
+- `MATHGENT_LOG_FILE_RETENTION=14 days`
+
+## Run (uv-first)
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+python -m pytest
+PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
+```
+
+## Testing & Quality
+
+```bash
+source .venv/bin/activate
+python -m pytest
+ruff check src tests
+mypy src
+bandit -q -r src
+pip-audit
+```
+
+## OSS Files
+- `LICENSE`
+- `CONTRIBUTING.md`
+- `CODE_OF_CONDUCT.md`
+- `SECURITY.md`
+- `.env.example`
