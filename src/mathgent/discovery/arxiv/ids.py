@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Mapping, Sequence
 
 ARXIV_URL_RE = re.compile(r"arxiv\.org/(?:abs|pdf|e-print|src)/(?P<id>[^?#]+)", re.IGNORECASE)
 ARXIV_PREFIX_RE = re.compile(
@@ -61,18 +60,9 @@ def dedupe_preserve(ids: list[str], *, max_results: int) -> list[str]:
     return out
 
 
-def extract_arxiv_ids_from_text_fields(
-    results: Sequence[Mapping[str, object]],
-    *,
-    max_results: int,
-    field_names: Sequence[str],
-) -> list[str]:
-    ids: list[str] = []
-    for item in results:
-        for key in field_names:
-            value = item.get(key)
-            if isinstance(value, str):
-                arxiv_id = extract_arxiv_id_from_text(value)
-                if arxiv_id:
-                    ids.append(arxiv_id)
-    return dedupe_preserve(ids, max_results=max_results)
+__all__ = [
+    "normalize_arxiv_id",
+    "looks_like_arxiv_id",
+    "extract_arxiv_id_from_text",
+    "dedupe_preserve",
+]

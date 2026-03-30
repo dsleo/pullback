@@ -10,7 +10,6 @@ dependencies = [
   "pydantic>=2.9.0",
   "pydantic-ai>=0.0.18",
   "e2b-code-interpreter>=2.5.0",
-  "exa-py>=1.14.0",
   "arxiv>=2.1.0",
   "loguru>=0.7.2",
   "logfire>=4.0.0",

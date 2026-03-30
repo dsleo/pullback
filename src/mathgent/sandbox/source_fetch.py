@@ -7,7 +7,7 @@ from pathlib import Path
 LATEX_MARKERS: tuple[str, ...] = (
     "\\begin{document}",
     "\\documentclass",
-    "\\documentstyle",
+    "\\\\documentstyle",
     "\\section",
     "\\chapter",
     "\\title",
@@ -53,7 +53,7 @@ def score_latex_text(text: str) -> tuple[int, int, int]:
         for token in (
             "\\begin{document}",
             "\\documentclass",
-            "\\documentstyle",
+            "\\\\documentstyle",
             "\\newtheorem",
             "\\section",
         )

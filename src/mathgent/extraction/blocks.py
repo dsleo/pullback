@@ -6,7 +6,7 @@ import shlex
 
 from ..observability import get_logger, trace_span
 from ..sandbox import SandboxRunner
-from .parsing import SUPPORTED_ENVIRONMENTS, window_bounds
+from .parsing import normalize_environment_token, window_bounds
 
 log = get_logger("forager.blocks")
 
@@ -26,29 +26,47 @@ async def fetch_latex_block(
         context_lines=context_lines,
     ):
         path = await sandbox.resolve_paper_path(arxiv_id)
-        normalized_env = (environment_name or "").strip().lower()
-        if normalized_env in SUPPORTED_ENVIRONMENTS:
-            env_quoted = shlex.quote(normalized_env)
+        normalized_env = normalize_environment_token(environment_name or "")
+        if normalized_env:
             max_lines = 220
             command = (
-                f"sed -n '{line_number},$p' {shlex.quote(path)} | "
-                f"awk -v env={env_quoted} -v max_lines={max_lines} '"
-                "BEGIN {"
-                "started=0; depth=0; count=0; "
-                "begin_pat=\"\\\\\\\\+begin\\\\{\" env \"\\\\}\"; "
-                "end_pat=\"\\\\\\\\+end\\\\{\" env \"\\\\}\""
-                "} "
-                "{"
-                "line=$0; "
-                "if (!started) {"
-                "if (line ~ begin_pat) {started=1; depth=1; print line; count=1; if (line ~ end_pat) exit} "
-                "next"
-                "} "
-                "if (line ~ begin_pat) depth++; "
-                "print line; count++; "
-                "if (line ~ end_pat) {depth--; if (depth <= 0) exit} "
-                "if (count >= max_lines) exit"
-                "}'"
+                "python - <<'PY'\n"
+                "import pathlib\n"
+                "import re\n"
+                "\n"
+                f"path = pathlib.Path({path!r})\n"
+                f"start_line = {line_number}\n"
+                f"max_lines = {max_lines}\n"
+                f"env = {normalized_env!r}\n"
+                "text = path.read_text(errors='ignore')\n"
+                "lines = text.splitlines()\n"
+                "begin_re = re.compile(r'\\\\+begin\\{' + re.escape(env) + r'\\}', flags=re.IGNORECASE)\n"
+                "end_re = re.compile(r'\\\\+end\\{' + re.escape(env) + r'\\}', flags=re.IGNORECASE)\n"
+                "started = False\n"
+                "depth = 0\n"
+                "count = 0\n"
+                "for idx in range(max(1, start_line), len(lines) + 1):\n"
+                "    line = lines[idx - 1]\n"
+                "    if not started:\n"
+                "        if begin_re.search(line):\n"
+                "            started = True\n"
+                "            depth = 1\n"
+                "            print(line)\n"
+                "            count = 1\n"
+                "            if end_re.search(line):\n"
+                "                break\n"
+                "        continue\n"
+                "    if begin_re.search(line):\n"
+                "        depth += 1\n"
+                "    print(line)\n"
+                "    count += 1\n"
+                "    if end_re.search(line):\n"
+                "        depth -= 1\n"
+                "        if depth <= 0:\n"
+                "            break\n"
+                "    if count >= max_lines:\n"
+                "        break\n"
+                "PY"
             )
             snippet = await sandbox.run_shell(command)
             if snippet.strip():

@@ -1,4 +1,4 @@
-"""Provider-chain discovery pipeline with timeout handling, dedupe, and round-robin merge."""
+"""Provider-chain discovery pipeline with timeout handling and dedupe."""
 
 from __future__ import annotations
 
@@ -7,12 +7,14 @@ from typing import Sequence
 
 from ..observability import get_logger
 from .base import DiscoveryAccessError, PaperDiscoveryClient
-from .parsing.arxiv_ids import normalize_arxiv_id
+from .arxiv.ids import normalize_arxiv_id
 
 log = get_logger("discovery.pipeline")
 
 
 class ChainedDiscoveryClient(PaperDiscoveryClient):
+    """Simple provider chain: try in order, dedupe, stop at max_results."""
+
     def __init__(
         self,
         *,
@@ -20,92 +22,58 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
         provider_timeout_seconds: float = 8.0,
     ) -> None:
         self._providers = list(providers)
-        self._provider_timeout_seconds = provider_timeout_seconds
-
-    @staticmethod
-    def _merge_round_robin(groups: list[list[str]], limit: int) -> list[str]:
-        merged: list[str] = []
-        if not groups or limit <= 0:
-            return merged
-        max_len = max((len(group) for group in groups), default=0)
-        for idx in range(max_len):
-            for group in groups:
-                if idx < len(group):
-                    merged.append(group[idx])
-                    if len(merged) >= limit:
-                        return merged
-        return merged
+        self._provider_timeout_seconds = max(0.0, provider_timeout_seconds)
 
     async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
-        errors: list[str] = []
+        if max_results <= 0:
+            return []
+
         seen: set[str] = set()
-        provider_groups: list[list[str]] = []
+        merged: list[str] = []
+        errors: list[str] = []
 
         for name, provider in self._providers:
             try:
-                merged_so_far = self._merge_round_robin(provider_groups, max_results)
-                remaining = max_results - len(merged_so_far)
-                if remaining <= 0:
-                    break
-
-                request_size = min(max(remaining * 3, remaining), 50)
                 if self._provider_timeout_seconds > 0:
                     ids = await asyncio.wait_for(
-                        provider.discover_arxiv_ids(query, request_size),
+                        provider.discover_arxiv_ids(query, max_results),
                         timeout=self._provider_timeout_seconds,
                     )
                 else:
-                    ids = await provider.discover_arxiv_ids(query, request_size)
+                    ids = await provider.discover_arxiv_ids(query, max_results)
             except TimeoutError:
-                errors.append(f"{name}: timed out after {self._provider_timeout_seconds:.1f}s")
-                log.warning(
-                    "provider.timeout provider={} timeout_s={:.1f} query={} request_size={}",
-                    name,
-                    self._provider_timeout_seconds,
-                    query,
-                    request_size,
-                )
+                error = f"timed out after {self._provider_timeout_seconds:.1f}s"
+                errors.append(f"{name}: {error}")
+                log.warning("provider.timeout provider={} timeout_s={:.1f}", name, self._provider_timeout_seconds)
                 continue
             except DiscoveryAccessError as exc:
-                errors.append(f"{name}: {exc}")
-                log.warning(
-                    "provider.failed provider={} query={} error_type={} error_repr={}",
-                    name,
-                    query,
-                    type(exc).__name__,
-                    repr(exc),
-                )
+                error = str(exc)
+                errors.append(f"{name}: {error}")
+                log.warning("provider.failed provider={} error_type={} error_repr={}", name, type(exc).__name__, repr(exc))
                 continue
 
             if not ids:
                 log.info("provider.empty provider={} query={}", name, query)
                 continue
 
-            accepted: list[str] = []
+            accepted = 0
             for arxiv_id in ids:
                 normalized = normalize_arxiv_id(arxiv_id)
+                if not normalized:
+                    continue
                 if normalized in seen:
                     continue
                 seen.add(normalized)
-                accepted.append(normalized)
+                merged.append(normalized)
+                accepted += 1
+                if len(merged) >= max_results:
+                    log.info("provider.success provider={} accepted={} merged={}", name, accepted, merged)
+                    return merged
 
-            if accepted:
-                provider_groups.append(accepted)
+            log.info("provider.success provider={} accepted={} merged={}", name, accepted, merged)
 
-            merged = self._merge_round_robin(provider_groups, max_results)
-            log.info(
-                "provider.success provider={} ids={} accepted={} merged={}",
-                name,
-                ids,
-                len(accepted),
-                merged,
-            )
-            if len(merged) >= max_results:
-                return merged
-
-        merged_final = self._merge_round_robin(provider_groups, max_results)
-        if merged_final:
-            return merged_final
+        if merged:
+            return merged
 
         details = " | ".join(errors) if errors else ""
         raise DiscoveryAccessError("No discovery provider returned arXiv IDs." + (f" {details}" if details else ""))

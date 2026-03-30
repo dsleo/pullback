@@ -1,17 +1,19 @@
-from .arxiv_metadata import ArxivMetadataClient, PaperMetadata, PaperMetadataClient
-from .base import DiscoveryAccessError, PaperDiscoveryClient, RetryConfig
+from .arxiv.ids import extract_arxiv_id_from_text, normalize_arxiv_id
+from .arxiv.metadata import PaperMetadata, PaperMetadataFetcher, fetch_arxiv_metadata
+from .base import DiscoveryAccessError, PaperDiscoveryClient
 from .pipeline import ChainedDiscoveryClient
-from .providers.exa import ExaDiscoveryClient
+from .providers.openai_search import OpenAISearchDiscoveryClient
 from .providers.openalex import OpenAlexDiscoveryClient
 
 __all__ = [
-    "ArxivMetadataClient",
+    "fetch_arxiv_metadata",
     "PaperMetadata",
-    "PaperMetadataClient",
+    "PaperMetadataFetcher",
+    "extract_arxiv_id_from_text",
+    "normalize_arxiv_id",
     "DiscoveryAccessError",
     "PaperDiscoveryClient",
-    "RetryConfig",
     "ChainedDiscoveryClient",
-    "ExaDiscoveryClient",
+    "OpenAISearchDiscoveryClient",
     "OpenAlexDiscoveryClient",
 ]

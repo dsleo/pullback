@@ -1,4 +1,4 @@
-"""Parsing helpers for theorem-like LaTeX headers and bounded line windows."""
+"""Parsing helpers for theorem-like LaTeX headers and bounded windows."""
 
 from __future__ import annotations
 
@@ -6,18 +6,39 @@ import re
 
 from ..models import LemmaHeader
 
-SUPPORTED_ENVIRONMENTS = ("lemma", "proposition", "theorem")
-ENV_HEADER_RE = re.compile(
-    r"\\+begin\{(?P<env>lemma|proposition|theorem)\}",
-    flags=re.IGNORECASE,
+THEOREM_LIKE_KEYWORDS = (
+    "theorem",
+    "thm",
+    "lemma",
+    "lem",
+    "proposition",
+    "prop",
+    "corollary",
+    "cor",
+    "claim",
 )
+ENV_HEADER_RE = re.compile(r"\\+begin\{(?P<env>[^}]+)\}", flags=re.IGNORECASE)
+VALID_ENV_TOKEN_RE = re.compile(r"^[a-z@][a-z0-9@:_-]*$", re.IGNORECASE)
 
 
-def extract_environment_name(header_line: str) -> str | None:
+def normalize_environment_token(token: str) -> str | None:
+    normalized = token.strip().lower()
+    while normalized.endswith("*"):
+        normalized = normalized[:-1].strip()
+    if not normalized or not VALID_ENV_TOKEN_RE.fullmatch(normalized):
+        return None
+    return normalized
+
+
+def extract_environment_token(header_line: str) -> str | None:
     match = ENV_HEADER_RE.search(header_line)
     if not match:
         return None
-    return match.group("env").lower()
+    return normalize_environment_token(match.group("env"))
+
+
+def extract_environment_name(header_line: str) -> str | None:
+    return extract_environment_token(header_line)
 
 
 def parse_grep_headers(raw_output: str) -> list[LemmaHeader]:
