@@ -41,20 +41,7 @@ class _FakeTools:
         return await self.fetch_latex_block(arxiv_id, line_number, context_lines=context_lines)
 
 
-class _SelectFirst:
-    async def select_line(
-        self,
-        *,
-        query: str,
-        arxiv_id: str,
-        headers: list[LemmaHeader],
-        heuristic_line: int,
-    ) -> int | None:
-        _ = query, arxiv_id, heuristic_line
-        return headers[0].line_number
-
-
-def test_forager_uses_heuristic_header_selection_by_default() -> None:
+def test_forager_selects_best_header() -> None:
     tools = _FakeTools()
     agent = ForagerAgent(tools=tools)
 
@@ -69,16 +56,15 @@ def test_forager_uses_heuristic_header_selection_by_default() -> None:
     assert result.line_number == 20
 
 
-def test_forager_supports_pluggable_header_selector() -> None:
+def test_forager_respects_strictness_threshold() -> None:
     tools = _FakeTools()
-    agent = ForagerAgent(tools=tools, header_selector=_SelectFirst())
+    agent = ForagerAgent(tools=tools)
 
     result = asyncio.run(
         agent.forage(
             query="Banach fixed point theorem",
             arxiv_id="2401.00001",
-            strictness=0.1,
+            strictness=1.1,
         )
     )
-    assert result is not None
-    assert result.line_number == 10
+    assert result is None

@@ -14,7 +14,7 @@ class FakeRunner:
 
     async def run_shell(self, command: str) -> str:
         self.commands.append(command)
-        if command.startswith("grep"):
+        if command.startswith("python - <<'PY'"):
             return r"12:\\begin{lemma}[Banach]"
         if command.startswith("wc -l"):
             return "120\n"

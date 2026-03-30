@@ -1,11 +1,15 @@
 import asyncio
+import json
 
-from mathgent.discovery import ChainedDiscoveryClient, DiscoveryAccessError, ExaDiscoveryClient, OpenAlexDiscoveryClient
-from mathgent.discovery.parsing import (
-    extract_arxiv_id_from_text,
-    normalize_arxiv_id,
+import httpx
+
+from mathgent.discovery import (
+    ChainedDiscoveryClient,
+    DiscoveryAccessError,
+    OpenAISearchDiscoveryClient,
+    OpenAlexDiscoveryClient,
 )
-from mathgent.discovery.arxiv_title_resolver import ArxivEntry, choose_best_arxiv_title_match
+from mathgent.discovery.arxiv.ids import extract_arxiv_id_from_text, normalize_arxiv_id
 
 
 def test_extract_arxiv_id_from_text_handles_url_and_versions() -> None:
@@ -42,33 +46,33 @@ def test_extract_arxiv_ids_from_openalex() -> None:
     ]
 
 
-def test_extract_arxiv_ids_from_exa_results() -> None:
-    results = [
-        {"url": "https://arxiv.org/abs/2502.12345v1"},
-        {"url": "https://arxiv.org/abs/2502.12345v2"},
-        {"text": "See also arXiv:2401.00001v1 for details."},
-    ]
-    assert ExaDiscoveryClient.extract_arxiv_ids_from_exa_results(results, max_results=5) == [
-        "2502.12345",
-        "2401.00001",
-    ]
 
-
-def test_choose_best_arxiv_title_match() -> None:
-    target = "Banach fixed point theorem in non reflexive spaces"
-    candidates = [
-        ArxivEntry(arxiv_id="1111.11111", title="Completely unrelated paper"),
-        ArxivEntry(arxiv_id="2401.00001", title="Banach fixed point theorem in non-reflexive spaces"),
+def test_extract_arxiv_ids_from_openai_structured_output() -> None:
+    payload = json.dumps(
+        {
+            "arxiv_ids": [
+                "2509.13121",
+                "https://arxiv.org/abs/math/9302208v1",
+                "arXiv:2207.03057v2",
+            ]
+        }
+    )
+    assert OpenAISearchDiscoveryClient._extract_from_structured_output(payload, max_results=5) == [
+        "2509.13121",
+        "math/9302208",
+        "2207.03057",
     ]
-    assert choose_best_arxiv_title_match(target, candidates, threshold=0.80) == "2401.00001"
 
 
 class _StubProvider:
     def __init__(self, ids: list[str], fail: bool = False) -> None:
         self._ids = ids
         self._fail = fail
+        self.calls = 0
 
     async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
+        _ = query
+        self.calls += 1
         if self._fail:
             raise DiscoveryAccessError("stub failed")
         return self._ids[:max_results]
@@ -81,11 +85,21 @@ class _SlowProvider:
         return ["2401.99999"]
 
 
+class _GenericFailingProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
+        _ = query, max_results
+        self.calls += 1
+        raise DiscoveryAccessError("temporary upstream failure")
+
+
 def test_chained_discovery_fills_from_backup_provider() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _StubProvider(["2401.00001"])),
-            ("exa", _StubProvider(["2501.00002", "2501.00003"])),
+            ("openai_search", _StubProvider(["2501.00002", "2501.00003"])),
         ]
     )
     result = asyncio.run(chain.discover_arxiv_ids("banach", 3))
@@ -96,7 +110,7 @@ def test_chained_discovery_dedupes_across_providers() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _StubProvider(["2401.00001"])),
-            ("exa", _StubProvider(["2401.00001v2", "2501.00003"])),
+            ("openai_search", _StubProvider(["2401.00001v2", "2501.00003"])),
         ]
     )
     result = asyncio.run(chain.discover_arxiv_ids("banach", 2))
@@ -107,7 +121,7 @@ def test_chained_discovery_times_out_provider_and_uses_next() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _SlowProvider()),
-            ("exa", _StubProvider(["2501.00002"])),
+            ("openai_search", _StubProvider(["2501.00002"])),
         ],
         provider_timeout_seconds=0.01,
     )
@@ -115,40 +129,65 @@ def test_chained_discovery_times_out_provider_and_uses_next() -> None:
     assert result == ["2501.00002"]
 
 
-def test_chained_discovery_interleaves_provider_results() -> None:
+def test_chained_discovery_keeps_fallback_on_provider_failures() -> None:
+    openalex = _GenericFailingProvider()
     chain = ChainedDiscoveryClient(
         providers=[
-            ("openalex", _StubProvider(["2401.00001", "2401.00002"])),
-            ("exa", _StubProvider(["2501.00003", "2501.00004"])),
+            ("openalex", openalex),
+            ("openai_search", _StubProvider(["2501.00002"])),
         ],
     )
-    result = asyncio.run(chain.discover_arxiv_ids("banach", 4))
-    assert result == ["2401.00001", "2501.00003", "2401.00002", "2501.00004"]
+
+    async def _run() -> None:
+        first = await chain.discover_arxiv_ids("query one", 1)
+        assert first == ["2501.00002"]
+        second = await chain.discover_arxiv_ids("query two", 1)
+        assert second == ["2501.00002"]
+        assert openalex.calls == 2
+
+    asyncio.run(_run())
 
 
-def test_openalex_semantic_title_resolution_used_when_no_direct_arxiv_ids(monkeypatch) -> None:
-    client = OpenAlexDiscoveryClient(
-        api_key="dummy",
-        title_resolution_enabled=True,
-        max_title_resolutions=4,
+def test_chained_discovery_raises_on_total_failure() -> None:
+    chain = ChainedDiscoveryClient(
+        providers=[
+            ("openalex", _StubProvider([], fail=True)),
+            ("openai_search", _StubProvider([], fail=True)),
+        ]
     )
+    try:
+        asyncio.run(chain.discover_arxiv_ids("banach", 2))
+    except DiscoveryAccessError as exc:
+        assert "No discovery provider" in str(exc)
+    else:
+        raise AssertionError("Expected DiscoveryAccessError")
 
-    async def fake_query_openalex(*args, **kwargs):
-        _ = args, kwargs
-        return {
-            "results": [
-                {"title": "Banach fixed point theorem in non-reflexive spaces", "ids": {}},
-                {"title": "Some unrelated title", "ids": {}},
-            ]
-        }
 
-    async def fake_resolve_titles(titles: list[str], *, needed: int) -> list[str]:
-        assert needed == 2
-        assert "Banach fixed point theorem in non-reflexive spaces" in titles
-        return ["2401.00001"]
+def test_openalex_query_uses_bounded_per_page() -> None:
+    captured_per_page: int | None = None
 
-    monkeypatch.setattr(client, "_query_openalex", fake_query_openalex)
-    monkeypatch.setattr(client._title_resolver, "resolve_titles", fake_resolve_titles)
+    async def _run() -> None:
+        nonlocal captured_per_page
 
-    ids = asyncio.run(client.discover_arxiv_ids("banach", 2))
-    assert ids == ["2401.00001"]
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal captured_per_page
+            per_page_raw = request.url.params.get("per-page")
+            captured_per_page = int(per_page_raw) if per_page_raw is not None else None
+            return httpx.Response(
+                status_code=200,
+                content=json.dumps({"results": []}),
+                headers={"content-type": "application/json"},
+            )
+
+        transport = httpx.MockTransport(handler)
+        client = OpenAlexDiscoveryClient(api_key="dummy")
+        async with httpx.AsyncClient(transport=transport, timeout=5.0) as http_client:
+            payload = await client._query_semantic(
+                http_client,
+                query="banach fixed point",
+                max_results=50,
+            )
+        assert payload == {"results": []}
+
+    asyncio.run(_run())
+    assert captured_per_page == 25

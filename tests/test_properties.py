@@ -1,7 +1,7 @@
 from hypothesis import given, strategies as st
 
-from mathgent.discovery.parsing import normalize_arxiv_id
-from mathgent.extraction.parsing import parse_grep_headers, window_bounds
+from mathgent.discovery.arxiv.ids import normalize_arxiv_id
+from mathgent.extraction.parsing import extract_environment_name, parse_grep_headers, window_bounds
 
 
 @given(
@@ -21,11 +21,11 @@ def test_window_bounds_stay_in_file(total_lines: int, center: int, radius: int) 
     title=st.text(min_size=0, max_size=60),
 )
 def test_parse_grep_headers_round_trip(line_num: int, title: str) -> None:
-    raw = f"{line_num}:\\\\begin{{lemma}}[{title}]"
+    raw = f"{line_num}:\\begin{{lemma}}[{title}]"
     headers = parse_grep_headers(raw)
     assert len(headers) == 1
     assert headers[0].line_number == line_num
-    assert "\\\\begin{lemma}" in headers[0].line
+    assert "\\begin{lemma}" in headers[0].line
 
 
 @given(
@@ -37,3 +37,8 @@ def test_normalize_arxiv_id_is_idempotent(base: str, version: int) -> None:
     normalized_once = normalize_arxiv_id(with_version)
     normalized_twice = normalize_arxiv_id(normalized_once)
     assert normalized_once == normalized_twice
+
+
+def test_extract_environment_name_from_header() -> None:
+    assert extract_environment_name(r"\begin{lemma}") == "lemma"
+    assert extract_environment_name(r"\begin{theorem}") == "theorem"

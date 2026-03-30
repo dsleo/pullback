@@ -6,6 +6,7 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
+from mathgent.discovery import DiscoveryAccessError
 from mathgent.models import LemmaMatch
 from mathgent.orchestration import LibrarianOrchestrator
 
@@ -28,6 +29,12 @@ class _Forager:
         )
 
 
+class _FailingDiscovery:
+    async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
+        _ = query, max_results
+        raise DiscoveryAccessError("openalex: timed out")
+
+
 def test_query_planner_supports_test_model_override(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     orchestrator = LibrarianOrchestrator(
@@ -36,7 +43,7 @@ def test_query_planner_supports_test_model_override(monkeypatch) -> None:
         model_name="openai:gpt-5-mini",
         agentic_query_loop=True,
         max_query_attempts=3,
-        query_planner_timeout_seconds=1.0,
+        timeout_seconds=1.0,
     )
 
     with orchestrator.query_planner_agent.override(
@@ -72,11 +79,11 @@ def test_query_planner_falls_back_when_model_requests_are_disabled(monkeypatch) 
             model_name="openai:gpt-5-mini",
             agentic_query_loop=True,
             max_query_attempts=2,
-            query_planner_timeout_seconds=0.5,
+            timeout_seconds=0.5,
         )
         attempts = asyncio.run(orchestrator._query_attempts("banach fixed point theorem"))
         assert attempts[0] == "banach fixed point theorem"
-        assert len(attempts) == 1
+        assert len(attempts) >= 1
     finally:
         pyd_models.ALLOW_MODEL_REQUESTS = previous
 
@@ -97,3 +104,33 @@ def test_agentic_discovery_falls_back_to_pipeline_when_model_requests_are_disabl
         assert discovered == ["2401.00001", "2401.00002"]
     finally:
         pyd_models.ALLOW_MODEL_REQUESTS = previous
+
+
+def test_agentic_discovery_returns_empty_ids_when_fallback_discovery_fails(monkeypatch) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    previous = pyd_models.ALLOW_MODEL_REQUESTS
+    pyd_models.ALLOW_MODEL_REQUESTS = False
+    try:
+        orchestrator = LibrarianOrchestrator(
+            discovery_client=_FailingDiscovery(),
+            forager=_Forager(),
+            model_name="openai:gpt-5-mini",
+            agentic_discovery=True,
+            max_query_attempts=1,
+        )
+        discovered = asyncio.run(orchestrator._discover_arxiv_ids("banach", 2))
+        assert discovered == []
+    finally:
+        pyd_models.ALLOW_MODEL_REQUESTS = previous
+
+
+def test_disabled_agentic_discovery_returns_empty_ids_when_pipeline_discovery_fails() -> None:
+    orchestrator = LibrarianOrchestrator(
+        discovery_client=_FailingDiscovery(),
+        forager=_Forager(),
+        model_name="test",
+        agentic_discovery=False,
+        max_query_attempts=1,
+    )
+    discovered = asyncio.run(orchestrator._discover_arxiv_ids("banach", 2))
+    assert discovered == []

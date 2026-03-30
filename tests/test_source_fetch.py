@@ -36,3 +36,5 @@ def test_generated_source_fetch_code_contains_safety_checks() -> None:
     assert "Unsupported archive link member" in code
     assert "Unsafe archive member path" in code
     assert "payload_block_reason" in code
+    assert "https://export.arxiv.org/e-print/" in code
+    assert "https://arxiv.org/e-print/" in code

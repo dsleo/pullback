@@ -9,13 +9,13 @@ from mathgent.orchestration import LibrarianOrchestrator
 class FakeDiscoveryClient:
     async def discover_arxiv_ids(self, query: str, max_papers: int) -> list[str]:
         assert query
-        return ["a", "b", "c"][:max_papers]
+        return ["2401.00001", "2401.00002", "2401.00003"][:max_papers]
 
 
 class FakeDiscoveryClientMany:
     async def discover_arxiv_ids(self, query: str, max_papers: int) -> list[str]:
         assert query
-        all_ids = ["a", "b", "c", "d", "e", "f"]
+        all_ids = ["2401.00001", "2401.00002", "2401.00003", "2401.00004", "2401.00005", "2401.00006"]
         return all_ids[:max_papers]
 
 
@@ -33,7 +33,7 @@ class FakeForager:
 
 class FailingForager:
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> LemmaMatch | None:
-        if arxiv_id == "b":
+        if arxiv_id == "2401.00002":
             raise RuntimeError("failed download")
         return LemmaMatch(
             arxiv_id=arxiv_id,
@@ -46,7 +46,7 @@ class FailingForager:
 
 class LateMatchForager:
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> LemmaMatch | None:
-        if arxiv_id != "d":
+        if arxiv_id != "2401.00004":
             return None
         return LemmaMatch(
             arxiv_id=arxiv_id,
@@ -64,7 +64,7 @@ class PrefixMatchForager:
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> LemmaMatch | None:
         _ = query, strictness
         self.calls.append(arxiv_id)
-        if arxiv_id in {"a", "b", "c"}:
+        if arxiv_id in {"2401.00001", "2401.00002", "2401.00003"}:
             return LemmaMatch(
                 arxiv_id=arxiv_id,
                 line_number=5,
@@ -75,18 +75,34 @@ class PrefixMatchForager:
         return None
 
 
+class CountingForager:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def forage(self, query: str, arxiv_id: str, strictness: float) -> LemmaMatch | None:
+        _ = query, strictness
+        self.calls.append(arxiv_id)
+        return LemmaMatch(
+            arxiv_id=arxiv_id,
+            line_number=5,
+            header_line="\\begin{theorem}[Fast]",
+            snippet="Fast match.",
+            score=0.9,
+        )
+
+
 class AdaptiveDiscoveryClient:
     async def discover_arxiv_ids(self, query: str, max_papers: int) -> list[str]:
         _ = max_papers
         if "nonexpansive" in query.lower():
-            return ["hit"]
-        return ["miss"]
+            return ["2501.00001"]
+        return ["2501.00002"]
 
 
 class AdaptiveForager:
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> LemmaMatch | None:
         _ = query, strictness
-        if arxiv_id != "hit":
+        if arxiv_id != "2501.00001":
             return None
         return LemmaMatch(
             arxiv_id=arxiv_id,
@@ -119,7 +135,7 @@ def test_orchestrator_fans_out_with_asyncio_gather() -> None:
     duration = time.perf_counter() - start
 
     assert isinstance(result, SearchResponse)
-    assert [entry.arxiv_id for entry in result.results] == ["a", "b", "c"]
+    assert [entry.arxiv_id for entry in result.results] == ["2401.00001", "2401.00002", "2401.00003"]
     assert duration < 0.60
 
 
@@ -131,45 +147,53 @@ def test_orchestrator_does_not_fail_whole_request_if_one_forager_fails() -> None
 
     result = asyncio.run(orchestrator.search("banach", max_results=3, strictness=0.2))
     by_id = {entry.arxiv_id: entry.match for entry in result.results}
-    assert by_id["a"] is not None
-    assert by_id["b"] is None
-    assert by_id["c"] is not None
+    assert by_id["2401.00001"] is not None
+    assert by_id["2401.00002"] is None
+    assert by_id["2401.00003"] is not None
 
 
-def test_orchestrator_oversamples_and_surfaces_late_matches() -> None:
+def test_orchestrator_limits_candidates_to_max_results() -> None:
     orchestrator = LibrarianOrchestrator(
         discovery_client=FakeDiscoveryClientMany(),
         forager=LateMatchForager(),
-        candidate_multiplier=2,
-        candidate_cap=10,
         delegate_concurrency=2,
     )
 
     result = asyncio.run(orchestrator.search("banach", max_results=3, strictness=0.2))
     assert len(result.results) == 3
-    assert result.results[0].arxiv_id == "d"
-    assert result.results[0].match is not None
+    assert [entry.arxiv_id for entry in result.results] == ["2401.00001", "2401.00002", "2401.00003"]
+    assert all(entry.match is None for entry in result.results)
 
 
-def test_orchestrator_early_stops_when_enough_matches() -> None:
-    forager = PrefixMatchForager()
+def test_orchestrator_dedupes_candidates_across_attempts() -> None:
+    forager = CountingForager()
     orchestrator = LibrarianOrchestrator(
-        discovery_client=FakeDiscoveryClientMany(),
+        discovery_client=FakeDiscoveryClient(),
         forager=forager,
-        candidate_multiplier=2,
-        candidate_cap=10,
-        delegate_concurrency=2,
-        early_stop_on_matches=True,
+        model_name="test",
+        agentic_query_loop=False,
+        max_query_attempts=2,
     )
 
-    result = asyncio.run(orchestrator.search("banach", max_results=3, strictness=0.2))
-    assert len(result.results) == 3
-    assert all(item.match is not None for item in result.results)
-    assert set(forager.calls).issubset({"a", "b", "c", "d"})
-    assert "f" not in forager.calls
+    async def fake_attempts(query: str) -> list[str]:
+        _ = query
+        return ["q1", "q2"]
+
+    async def fake_discover(query: str, max_results: int) -> list[str]:
+        _ = max_results
+        if query == "q1":
+            return ["2401.00001", "2401.00002", "2401.00003"]
+        return ["2401.00002", "2401.00003", "2401.00004"]
+
+    orchestrator._query_attempts = fake_attempts  # type: ignore[method-assign]
+    orchestrator._discover_arxiv_ids = fake_discover  # type: ignore[method-assign]
+
+    result = asyncio.run(orchestrator.search("banach", max_results=4, strictness=0.2))
+    assert [entry.arxiv_id for entry in result.results] == ["2401.00001", "2401.00002", "2401.00003", "2401.00004"]
+    assert forager.calls == ["2401.00001", "2401.00002", "2401.00003", "2401.00004"]
 
 
-def test_orchestrator_query_attempts_default_to_single_query() -> None:
+def test_orchestrator_query_attempts_default_keep_base_query_first() -> None:
     orchestrator = LibrarianOrchestrator(
         discovery_client=FakeDiscoveryClient(),
         forager=FakeForager(),
@@ -177,7 +201,8 @@ def test_orchestrator_query_attempts_default_to_single_query() -> None:
         agentic_query_loop=False,
     )
     attempts = asyncio.run(orchestrator._query_attempts("banach fixed point theorem"))
-    assert attempts == ["banach fixed point theorem"]
+    assert attempts
+    assert attempts[0] == "banach fixed point theorem"
 
 
 def test_orchestrator_query_attempts_use_planner_output_when_enabled(monkeypatch) -> None:
@@ -188,7 +213,7 @@ def test_orchestrator_query_attempts_use_planner_output_when_enabled(monkeypatch
         model_name="openai:gpt-5-mini",
         agentic_query_loop=True,
         max_query_attempts=3,
-        query_planner_timeout_seconds=1.0,
+        timeout_seconds=1.0,
     )
 
     class _PlanOut:
@@ -219,7 +244,6 @@ def test_orchestrator_replans_when_no_matches(monkeypatch) -> None:
         agentic_query_loop=True,
         max_query_attempts=2,
         max_replan_rounds=2,
-        early_stop_on_matches=True,
     )
 
     async def fake_attempts(query: str) -> list[str]:
@@ -235,7 +259,7 @@ def test_orchestrator_replans_when_no_matches(monkeypatch) -> None:
     monkeypatch.setattr(orchestrator, "_next_replan_seed", fake_next_seed)
 
     result = asyncio.run(orchestrator.search("banach fixed point theorem", max_results=1, strictness=0.2))
-    assert result.results[0].arxiv_id == "hit"
+    assert result.results[0].arxiv_id == "2501.00001"
     assert result.results[0].match is not None
 
 
@@ -264,10 +288,10 @@ def test_orchestrator_attaches_paper_metadata() -> None:
     orchestrator = LibrarianOrchestrator(
         discovery_client=FakeDiscoveryClient(),
         forager=FakeForager(),
-        metadata_client=FakeMetadataClient(),
+        metadata_fetcher=FakeMetadataClient(),
     )
 
     result = asyncio.run(orchestrator.search("banach", max_results=2, strictness=0.2))
     assert len(result.results) == 2
-    assert result.results[0].title == "Title for a"
+    assert result.results[0].title == "Title for 2401.00001"
     assert result.results[0].authors == ["Alice", "Bob"]
