@@ -70,27 +70,33 @@ Ranked results — each with the matched theorem snippet
 
 ### Option A — HTTP API (recommended)
 
-\`\`\`bash
+```bash
 # 1. Install
 uv venv && source .venv/bin/activate
 uv pip install -e .
+```
 
 # 2. Configure
+````bash
 cp .env.example .env.local
+```
 # Edit .env.local — add your keys
 
 # 3. Start the server
+```bash
 PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
+```
 
 # 4. Search
+```bash
 curl -X POST http://127.0.0.1:8000/search \
   -H "Content-Type: application/json" \
   -d '{"query": "Banach fixed point theorem", "max_results": 5, "strictness": 0.2}'
-\`\`\`
+````
 
 ### Option B — Direct Python usage
 
-\`\`\`python
+```python
 import asyncio
 from mathgent.settings import load_settings
 from mathgent.api.deps import build_orchestrator
@@ -105,29 +111,29 @@ async def search(query: str):
         print()
 
 asyncio.run(search("Banach fixed point theorem"))
-\`\`\`
+```
 
 Run with:
-\`\`\`bash
+```bash
 PYTHONPATH=src python your_script.py
 # or load your .env.local first:
 set -a && source .env.local && set +a && PYTHONPATH=src python your_script.py
-\`\`\`
+```
 
 ---
 
 ## Request & Response
 
-\`\`\`json
+```json
 // POST /search
 {
   "query": "Banach fixed point theorem for non-reflexive spaces",
   "max_results": 5,
   "strictness": 0.2
 }
-\`\`\`
+```
 
-\`\`\`json
+```json
 // Response
 {
   "results": [
@@ -143,7 +149,7 @@ set -a && source .env.local && set +a && PYTHONPATH=src python your_script.py
     }
   ]
 }
-\`\`\`
+```
 
 **Parameters:**
 - `strictness` `[0.0–1.0]` — minimum relevance score to return a result. Start at `0.2`.
@@ -170,18 +176,18 @@ Settings come from `config.json` (base) with `.env.local` overrides. Copy `.env.
 
 ## Development
 
-\`\`\`bash
+```bash
 pytest                        # run all tests
 ruff check src/ tests/        # lint
 ruff format src/ tests/       # format
 mypy src/                     # type check
-\`\`\`
+```
 
 ---
 
 ## Architecture
 
-\`\`\`
+```
 src/mathgent/
 ├── api/              FastAPI app, routes, dependency injection
 ├── orchestration/    LibrarianOrchestrator, QueryPlannerService
@@ -194,7 +200,7 @@ src/mathgent/
 ├── models/           Domain and API models
 ├── tools/            Agent tool facades (discovery, extraction)
 └── observability/    Loguru logging, Logfire tracing, hook registry
-\`\`\`
+```
 
 ---
 
