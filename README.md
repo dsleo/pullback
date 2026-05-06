@@ -69,25 +69,26 @@ Ranked results — each with the matched theorem snippet
 ## Quick Start
 
 ### Option A — HTTP API (recommended)
+#### 1. Install
 
 ```bash
-# 1. Install
 uv venv && source .venv/bin/activate
 uv pip install -e .
 ```
 
-# 2. Configure
+#### 2. Configure
 ```bash
 cp .env.example .env.local
 ```
-# Edit .env.local — add your keys
 
-# 3. Start the server
+Edit .env.local — add your keys
+
+#### 3. Start the server
 ```bash
 PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
 ```
 
-# 4. Search
+#### 4. Search
 ```bash
 curl -X POST http://127.0.0.1:8000/search \
   -H "Content-Type: application/json" \
