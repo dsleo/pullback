@@ -77,7 +77,7 @@ uv pip install -e .
 ```
 
 # 2. Configure
-````bash
+```bash
 cp .env.example .env.local
 ```
 # Edit .env.local — add your keys
