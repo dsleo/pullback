@@ -97,10 +97,11 @@ PYTHONPATH=src python your_script.py
 
 The benchmark evaluates retrieval accuracy on a curated set of mathematical queries, each paired with a ground-truth arXiv paper and theorem label.
 
-**Dataset** — available on HuggingFace: [`dsleo/mathgent-benchmark`](https://huggingface.co/datasets/dsleo/mathgent-benchmark)
+**Dataset** — available on HuggingFace: [`uw-math-ai/theorem-search-dataset`](https://huggingface.co/datasets/uw-math-ai/theorem-search-dataset)
 
-| Split | Queries | Description |
+| File | Queries | Description |
 |-------|---------|-------------|
+| `benchmark_clean_106.jsonl` | 106 | Full set (71 original + 35 additional) |
 | `benchmark_clean_71.jsonl` | 71 | Original validated set |
 | `benchmark_new_35.jsonl` | 35 | Additional harder queries |
 
@@ -123,9 +124,9 @@ set -a && source .env.local && set +a
 
 # Original 71-query set
 python scripts/eval_benchmark.py \
-  --data data/benchmark_clean_71.jsonl \
+  --data data/benchmark_clean_106.jsonl \  # full 106-query set
   --max-results 20 --strictness 0.0 --validate-labels \
-  --output logs/my_benchmark_71.jsonl
+  --output logs/my_benchmark_106.jsonl
 
 # Additional 35-query set
 python scripts/eval_benchmark.py \
