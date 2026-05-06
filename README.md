@@ -44,6 +44,100 @@ Ranked results — each with the matched theorem snippet
 
 ---
 
+## Quick Start
+
+### Option A — HTTP API (recommended)
+
+```bash
+# 1. Install
+uv venv && source .venv/bin/activate
+uv pip install -e .
+
+# 2. Configure
+cp .env.example .env.local
+# Edit .env.local — add your keys (see API Keys section below)
+
+# 3. Start the server
+PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
+
+# 4. Search
+curl -X POST http://127.0.0.1:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Banach fixed point theorem", "max_results": 5, "strictness": 0.2}'
+```
+
+### Option B — Direct Python usage
+
+```python
+import asyncio
+from mathgent.settings import load_settings
+from mathgent.api.deps import build_orchestrator
+
+async def search(query: str):
+    settings = load_settings()          # reads config.json + .env.local
+    orchestrator = build_orchestrator(settings)
+    response = await orchestrator.search(query, max_results=5, strictness=0.2)
+    for result in response.results:
+        print(f"{result.arxiv_id} | score={result.match.score:.2f}")
+        print(result.match.snippet)
+        print()
+
+asyncio.run(search("Banach fixed point theorem"))
+```
+
+```bash
+# Load your keys and run
+set -a && source .env.local && set +a
+PYTHONPATH=src python your_script.py
+```
+
+---
+
+## Benchmark
+
+The benchmark evaluates retrieval accuracy on a curated set of mathematical queries, each paired with a ground-truth arXiv paper and theorem label.
+
+**Dataset** — available on HuggingFace: [`dsleo/mathgent-benchmark`](https://huggingface.co/datasets/dsleo/mathgent-benchmark)
+
+| Split | Queries | Description |
+|-------|---------|-------------|
+| `benchmark_clean_71.jsonl` | 71 | Original validated set |
+| `benchmark_new_35.jsonl` | 35 | Additional harder queries |
+
+Each entry has the form:
+```json
+{
+  "query": "Smooth DM stack is uniquely determined by codimension one behaviour",
+  "gt_arxiv_id": "2310.15076",
+  "gt_theorem_label": "Theorem 3.1",
+  "gt_paper_title": "A criterion for smooth weighted blowdowns"
+}
+```
+
+**Metrics**: `paper@20` (ground-truth paper in top 20), `theorem@20` (ground-truth theorem in top 20).
+
+**Run the benchmark:**
+
+```bash
+set -a && source .env.local && set +a
+
+# Original 71-query set
+python scripts/eval_benchmark.py \
+  --data data/benchmark_clean_71.jsonl \
+  --max-results 20 --strictness 0.0 --validate-labels \
+  --output logs/my_benchmark_71.jsonl
+
+# Additional 35-query set
+python scripts/eval_benchmark.py \
+  --data data/benchmark_new_35.jsonl \
+  --max-results 20 --strictness 0.0 --validate-labels \
+  --output logs/my_benchmark_35.jsonl
+```
+
+> **Note on reproducibility** — results vary across runs due to LLM stochasticity in query planning. For deterministic evaluation, set `MATHGENT_LIBRARIAN_MODEL=test` (disables LLM expansion) or fix `MATHGENT_MAX_QUERY_ATTEMPTS=1`. The `--resume` flag lets you continue an interrupted run.
+
+---
+
 ## API Keys
 
 | Key | Required? | Purpose |
@@ -55,7 +149,7 @@ Ranked results — each with the matched theorem snippet
 | `OPENALEX_MAILTO` | Optional | Polite-pool access for OpenAlex (your email) |
 
 ¹ **OpenAI or OpenRouter** — set `MATHGENT_LIBRARIAN_MODEL` accordingly:
-  - `openai:gpt-5-mini` → uses `OPENAI_API_KEY`
+  - `openai:gpt-4o-mini` → uses `OPENAI_API_KEY`
   - `openrouter:anthropic/claude-3-haiku` → uses `OPENROUTER_API_KEY`
 
   Note: if you use OpenRouter, also set `MATHGENT_RERANKER=token_overlap` (the default reranker requires `OPENAI_API_KEY`).
@@ -63,63 +157,6 @@ Ranked results — each with the matched theorem snippet
 ² Not needed if you supply a local TeX cache via `MATHGENT_LOCAL_TEX_DIR`. See [data/tex_cache/README.md](data/tex_cache/README.md).
 
 > **Minimal free setup** — `MATHGENT_AGENTIC=0`, `MATHGENT_LIBRARIAN_MODEL=test`, `MATHGENT_RERANKER=token_overlap`, and a local TeX dir. No API keys required.
-
----
-
-## Quick Start
-
-### Option A — HTTP API (recommended)
-#### 1. Install
-
-```bash
-uv venv && source .venv/bin/activate
-uv pip install -e .
-```
-
-#### 2. Configure
-```bash
-cp .env.example .env.local
-```
-
-Edit .env.local — add your keys
-
-#### 3. Start the server
-```bash
-PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
-```
-
-#### 4. Search
-```bash
-curl -X POST http://127.0.0.1:8000/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Banach fixed point theorem", "max_results": 5, "strictness": 0.2}'
-````
-
-### Option B — Direct Python usage
-
-```python
-import asyncio
-from mathgent.settings import load_settings
-from mathgent.api.deps import build_orchestrator
-
-async def search(query: str):
-    settings = load_settings()          # this reads config.json + .env.local
-    orchestrator = build_orchestrator(settings)
-    response = await orchestrator.search(query, max_results=5, strictness=0.2)
-    for result in response.results:
-        print(f"{result.arxiv_id} | score={result.match.score:.2f}")
-        print(result.match.snippet)
-        print()
-
-asyncio.run(search("Banach fixed point theorem"))
-```
-
-Run with:
-```bash
-PYTHONPATH=src python your_script.py
-# or load your .env.local first:
-set -a && source .env.local && set +a && PYTHONPATH=src python your_script.py
-```
 
 ---
 
