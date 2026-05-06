@@ -1,3 +1,3 @@
-from .forager import ForagerAgent
+from .forager import ForagePlan, ForagerAgent
 
-__all__ = ["ForagerAgent"]
+__all__ = ["ForagePlan", "ForagerAgent"]

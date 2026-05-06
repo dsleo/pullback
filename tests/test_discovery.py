@@ -6,8 +6,9 @@ import httpx
 from mathgent.discovery import (
     ChainedDiscoveryClient,
     DiscoveryAccessError,
-    OpenAISearchDiscoveryClient,
+    OpenRouterSearchDiscoveryClient,
     OpenAlexDiscoveryClient,
+    ZbMathOpenDiscoveryClient,
 )
 from mathgent.discovery.arxiv.ids import extract_arxiv_id_from_text, normalize_arxiv_id
 
@@ -47,7 +48,7 @@ def test_extract_arxiv_ids_from_openalex() -> None:
 
 
 
-def test_extract_arxiv_ids_from_openai_structured_output() -> None:
+def test_extract_arxiv_ids_from_openrouter_structured_output() -> None:
     payload = json.dumps(
         {
             "arxiv_ids": [
@@ -57,7 +58,7 @@ def test_extract_arxiv_ids_from_openai_structured_output() -> None:
             ]
         }
     )
-    assert OpenAISearchDiscoveryClient._extract_from_structured_output(payload, max_results=5) == [
+    assert OpenRouterSearchDiscoveryClient._extract_from_structured_output(payload, max_results=5) == [
         "2509.13121",
         "math/9302208",
         "2207.03057",
@@ -99,7 +100,7 @@ def test_chained_discovery_fills_from_backup_provider() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _StubProvider(["2401.00001"])),
-            ("openai_search", _StubProvider(["2501.00002", "2501.00003"])),
+            ("openrouter_search", _StubProvider(["2501.00002", "2501.00003"])),
         ]
     )
     result = asyncio.run(chain.discover_arxiv_ids("banach", 3))
@@ -110,7 +111,7 @@ def test_chained_discovery_dedupes_across_providers() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _StubProvider(["2401.00001"])),
-            ("openai_search", _StubProvider(["2401.00001v2", "2501.00003"])),
+            ("openrouter_search", _StubProvider(["2401.00001v2", "2501.00003"])),
         ]
     )
     result = asyncio.run(chain.discover_arxiv_ids("banach", 2))
@@ -121,7 +122,7 @@ def test_chained_discovery_times_out_provider_and_uses_next() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _SlowProvider()),
-            ("openai_search", _StubProvider(["2501.00002"])),
+            ("openrouter_search", _StubProvider(["2501.00002"])),
         ],
         provider_timeout_seconds=0.01,
     )
@@ -134,7 +135,7 @@ def test_chained_discovery_keeps_fallback_on_provider_failures() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", openalex),
-            ("openai_search", _StubProvider(["2501.00002"])),
+            ("openrouter_search", _StubProvider(["2501.00002"])),
         ],
     )
 
@@ -152,7 +153,7 @@ def test_chained_discovery_raises_on_total_failure() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
             ("openalex", _StubProvider([], fail=True)),
-            ("openai_search", _StubProvider([], fail=True)),
+            ("openrouter_search", _StubProvider([], fail=True)),
         ]
     )
     try:
@@ -191,3 +192,41 @@ def test_openalex_query_uses_bounded_per_page() -> None:
 
     asyncio.run(_run())
     assert captured_per_page == 25
+
+
+def test_openalex_fallback_detector_triggers_on_rate_limit() -> None:
+    client = OpenAlexDiscoveryClient(api_key="dummy")
+    error = DiscoveryAccessError(
+        "OpenAlex semantic request failed (status 429). body={\"error\":\"Rate limit exceeded\"}"
+    )
+    assert client._should_fallback_to_keyword(error) is True
+
+
+def test_zbmath_404_is_treated_as_empty() -> None:
+    async def _run() -> None:
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert str(request.url).startswith("https://api.zbmath.org/v1/document/_structured_search")
+            return httpx.Response(status_code=404, content=b"{\"result\":null,\"status\":{}}")
+
+        transport = httpx.MockTransport(handler)
+        client = ZbMathOpenDiscoveryClient(timeout_seconds=2.0)
+        async with httpx.AsyncClient(transport=transport, timeout=5.0) as http_client:
+            payload = await client._query_structured(http_client, query="banach", max_results=5)
+        assert payload == {"result": []}
+
+    asyncio.run(_run())
+
+
+def test_zbmath_discover_arxiv_ids_dedupes() -> None:
+    from mathgent.discovery.arxiv.ids import dedupe_preserve
+
+    client = ZbMathOpenDiscoveryClient(timeout_seconds=2.0)
+    hit = {
+        "links": [
+            {"identifier": "2210.03406", "type": "arxiv", "url": "https://arxiv.org/abs/2210.03406"},
+            {"identifier": "2210.03406", "type": "arxiv", "url": "https://arxiv.org/abs/2210.03406"},
+        ]
+    }
+    ids = client._extract_arxiv_ids_from_hit(hit)
+    assert ids.count("2210.03406") >= 2
+    assert dedupe_preserve(ids, max_results=10) == ["2210.03406"]

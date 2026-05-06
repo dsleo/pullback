@@ -43,6 +43,7 @@ class QueryPlannerService:
         self._max_query_attempts = max(1, max_query_attempts)
         self._timeout_seconds = timeout_seconds
         self._usage_limits = usage_limits
+        self._expansion_cache: dict[str, list[str]] = {}  # Cache query expansions
 
         self.agent = Agent(
             model_name,
@@ -50,15 +51,68 @@ class QueryPlannerService:
             output_type=QueryPlanOutput,
             instrument=get_agent_instrumentation(),
             instructions=(
-                "You are a query strategist for mathematical paper search with broad knowledge of the literature. "
-                "A mathematician provides a statement or result and wants the most similar results in the literature, "
-                "possibly phrased differently. Your task is to propose search queries that surface those papers. "
-                "Output format: a JSON object with exactly one key 'queries' whose value is a list of strings. "
-                "No prose and no extra keys. "
-                "Constraints: keep each query short (<= 12 words), preserve the core math topic, "
-                "avoid duplicates or trivial rewordings, and do not invent arXiv IDs. "
-                "If returning multiple queries, make them meaningfully diverse by varying terminology, "
-                "synonyms, or equivalent formulations of the same statement."
+                "You are a mathematical literature search expert. Your task is to rewrite a single "
+                "math query into a small set of MAXIMALLY DIVERSE search queries that together maximize "
+                "recall across different paper databases (arXiv, zbMATH, OpenAlex).\n"
+                "\n"
+                "CRITICAL: Queries that are too similar return duplicate results. Each query MUST "
+                "target a meaningfully different angle. Trivial paraphrases waste slots.\n"
+                "\n"
+                "Output JSON with exactly one key: queries (list of strings).\n"
+                "Hard constraints:\n"
+                "- Return at most the requested number of queries.\n"
+                "- Each query <= 14 words.\n"
+                "- No invented author names, venues, or arXiv IDs.\n"
+                "\n"
+                "USE EXACTLY THESE STRATEGIES, one per slot, in order:\n"
+                "\n"
+                "1. NOUN-PHRASE (paper-title style): compress to key mathematical objects only, "
+                "drop all logical connectives and quantifiers. Matches paper titles.\n"
+                "   Example: 'Every compact metric space embeds isometrically into a Banach space' "
+                "-> 'isometric embedding compact metric space Banach space'\n"
+                "\n"
+                "2. SYNONYM-SWAP: replace 2-3 key terms with standard mathematical synonyms or "
+                "equivalent formulations from different subfields. Change vocabulary substantially.\n"
+                "   Example: 'smooth DM stack codimension one' "
+                "-> 'smooth Deligne-Mumford algebraic stack divisor determines'\n"
+                "\n"
+                "3. ABSTRACTION-OR-SPECIALIZATION: state the result in a broader foundational form, "
+                "or identify the specific instance. Use different nouns entirely.\n"
+                "   Example: 'quotient of root stack of DVR' "
+                "-> 'root stack local ring tame ramification quotient'\n"
+                "\n"
+                "4. ENTITY-ATTRIBUTION (if slot available): If you can RELIABLY identify the author(s) "
+                "of this result with HIGH confidence, generate a query with their last name(s) + "
+                "3-4 key mathematical terms from the statement. "
+                "CRITICAL: Only use this slot if you are certain about the attribution — a wrong "
+                "author name makes the query useless. Do NOT invent plausible-sounding names. "
+                "SKIP this slot entirely if attribution is uncertain by using a different strategy instead.\n"
+                "   Example: 'Quasi-coherent sheaves satisfy fpqc descent' "
+                "-> 'Vistoli quasi-coherent sheaves fpqc descent'\n"
+                "   Example: 'Compact metric space embeds isometrically into Banach space' "
+                "-> 'Grothendieck isometric embedding compact metric space'\n"
+                "   Example: 'Gluing and clutching morphisms for twisted stable maps' "
+                "-> 'Abramovich Vistoli twisted stable maps gluing'\n"
+                "\n"
+                "5. KEYWORD-FIELD (if slot available): 2-4 bare mathematical keywords, no sentence "
+                "structure. Include the subfield name.\n"
+                "   Example: 'algebraic stacks moduli codimension boundary'\n"
+                "\n"
+                "6. SUBJECT-AREA (if slot available): describe the PAPER's overall domain and type, "
+                "NOT the specific theorem. Ask yourself: what kind of paper would prove this? Use "
+                "topic-level vocabulary that would appear in a paper's title or abstract — not the "
+                "theorem statement. This slot is especially important for queries describing internal "
+                "lemmas or propositions.\n"
+                "   Example: 'Monotonicity of frequency function for elliptic operators on Dini domains' "
+                "-> 'unique continuation elliptic equations boundary regularity harmonic analysis'\n"
+                "   Example: 'Whitney decomposition of a Lipschitz domain' "
+                "-> 'harmonic analysis Lipschitz domain boundary behavior elliptic PDE'\n"
+                "   Example: 'Any good moduli space map has a section after an alteration' "
+                "-> 'good moduli spaces algebraic stacks proper morphisms'\n"
+                "\n"
+                "Each query must be LEXICALLY DISTINCT from the others — minimal word overlap "
+                "beyond unavoidable core mathematical terms.\n"
+                "Output JSON only."
             ),
         )
 
@@ -85,6 +139,10 @@ class QueryPlannerService:
             if len(ordered) >= self._max_query_attempts:
                 break
         return ordered or [base_query]
+
+    @staticmethod
+    def _normalize_query(text: str) -> str:
+        return " ".join(text.split())
 
     async def _run_plan(self, prompt: str, *, original_query: str, max_query_attempts: int) -> QueryPlanOutput:
         if self._timeout_seconds > 0:
@@ -117,6 +175,12 @@ class QueryPlannerService:
         if not self._enabled:
             return self._simple_attempts(base)
 
+        # Check cache first
+        cache_key = self.query_key(base)
+        if cache_key in self._expansion_cache:
+            log.info("query_plan.cache_hit query_key={}", cache_key)
+            return self._expansion_cache[cache_key]
+
         log.info(
             "query_plan.start model={} timeout_s={:.2f} max_query_attempts={}",
             self._model_name,
@@ -125,11 +189,11 @@ class QueryPlannerService:
         )
         prompt = (
             f"Original query: {base}\n"
-            f"Need up to {self._max_query_attempts} search queries in priority order.\n"
-            "Goal: maximize recall of papers stating the same or closely related result, "
-            "including paraphrased or alternative formulations.\n"
-            "Make queries diverse (different phrasing, equivalent terms), not just minor rewrites.\n"
-            "Respond only with the JSON object containing 'queries'."
+            f"Generate up to {self._max_query_attempts} search queries using the strategies in your instructions.\n"
+            "Each query must use a DIFFERENT strategy and be lexically distinct from the others.\n"
+            "Do NOT produce minor rewrites — each query should look like it was written by someone "
+            "approaching the problem from a completely different angle.\n"
+            "Respond only with the JSON object containing queries."
         )
         try:
             output = await self._run_plan(
@@ -140,6 +204,8 @@ class QueryPlannerService:
             planned = [q.strip() for q in output.queries if q and q.strip()]
             attempts = self.sanitize_attempt_queries(base, planned)
             log.info("query_plan.generated attempts={}", attempts)
+            # Cache the result
+            self._expansion_cache[cache_key] = attempts
             return attempts or [base]
         except Exception as exc:
             log.warning(
@@ -149,7 +215,10 @@ class QueryPlannerService:
                 type(exc).__name__,
                 repr(exc),
             )
-            return self._simple_attempts(base)
+            result = self._simple_attempts(base)
+            # Cache fallback result too
+            self._expansion_cache[cache_key] = result
+            return result
 
     async def next_replan_seed(self, *, original_query: str, seen_queries: list[str]) -> str | None:
         seen_keys = {self.query_key(item) for item in seen_queries}

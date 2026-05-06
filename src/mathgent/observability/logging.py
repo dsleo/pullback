@@ -11,6 +11,8 @@ from typing import Protocol, cast
 
 from loguru import logger
 
+from ..config import get_config
+
 _request_id_ctx: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 _is_configured = False
 
@@ -36,8 +38,11 @@ def _setup_loguru() -> None:
     if _is_configured:
         return
 
-    level = os.getenv("MATHGENT_LOG_LEVEL", "INFO").upper()
-    serialize = os.getenv("MATHGENT_LOG_JSON", "0").lower() in {"1", "true", "yes", "on"}
+    cfg = get_config()
+    obs_cfg = cfg["observability"]
+
+    level = obs_cfg["log_level"].upper()
+    serialize = obs_cfg["log_json"]
 
     logger.remove()
     logger.configure(extra={"request_id": "-", "component": "-"})
@@ -54,9 +59,9 @@ def _setup_loguru() -> None:
         format=fmt,
     )
 
-    file_enabled = os.getenv("MATHGENT_LOG_FILE_ENABLED", "1").lower() in {"1", "true", "yes", "on"}
+    file_enabled = obs_cfg["log_file_enabled"]
     if file_enabled:
-        log_file = Path(os.getenv("MATHGENT_LOG_FILE", "logs/mathgent.log"))
+        log_file = Path(obs_cfg["log_file"])
         log_file.parent.mkdir(parents=True, exist_ok=True)
         logger.add(
             str(log_file),
@@ -64,8 +69,8 @@ def _setup_loguru() -> None:
             serialize=serialize,
             backtrace=False,
             diagnose=False,
-            rotation=os.getenv("MATHGENT_LOG_FILE_ROTATION", "20 MB"),
-            retention=os.getenv("MATHGENT_LOG_FILE_RETENTION", "14 days"),
+            rotation=obs_cfg["log_file_rotation"],
+            retention=obs_cfg["log_file_retention"],
             enqueue=True,
             format=fmt,
         )
@@ -75,7 +80,10 @@ def _setup_loguru() -> None:
 
 def _setup_logfire_if_available() -> None:
     global _logfire
-    enabled = os.getenv("MATHGENT_ENABLE_LOGFIRE", "1").lower() in {"1", "true", "yes", "on"}
+    cfg = get_config()
+    obs_cfg = cfg["observability"]
+
+    enabled = obs_cfg["enable_logfire"]
     if not enabled:
         return
 
@@ -85,8 +93,8 @@ def _setup_logfire_if_available() -> None:
         logger.bind(component="observability").info("logfire.not_installed using_loguru_only=true")
         return
 
-    send_to_logfire = os.getenv("MATHGENT_LOGFIRE_SEND", "0").lower() in {"1", "true", "yes", "on"}
-    service_name = os.getenv("MATHGENT_SERVICE_NAME", "mathgent")
+    send_to_logfire = obs_cfg["logfire_send"]
+    service_name = obs_cfg["service_name"]
     try:
         lf.configure(service_name=service_name, send_to_logfire=send_to_logfire)
         _logfire = lf
@@ -115,7 +123,8 @@ def reset_request_id(token: contextvars.Token[str]) -> None:
 
 
 def get_agent_instrumentation() -> bool:
-    return os.getenv("MATHGENT_PYDANTICAI_INSTRUMENT", "1").lower() in {"1", "true", "yes", "on"}
+    cfg = get_config()
+    return cfg["observability"]["pydanticai_instrument"]
 
 
 def trace_span(name: str, **fields: object):

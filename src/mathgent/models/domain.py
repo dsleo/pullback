@@ -22,4 +22,5 @@ class SearchResultEntry(BaseModel):
     arxiv_id: str
     title: str | None = None
     authors: list[str] = Field(default_factory=list)
-    match: LemmaMatch | None
+    match: LemmaMatch | None = None
+    candidates: list[LemmaMatch] = Field(default_factory=list)

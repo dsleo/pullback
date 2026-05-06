@@ -8,3 +8,17 @@ __pycache__/
 logs/
 
 *.egg-info/
+
+.claude/
+.venv/
+
+# Large benchmark/iteration artifacts
+data/theorem_dataset_*.jsonl
+data/benchmark_papers_tex/
+data/benchmark_new*.jsonl
+data/remaining_39_validation.*
+data/REMAINING_39_REPORT.md
+configs/iteration_*.json
+configs/ITERATIONS.jsonl
+scripts/eval_*.sh
+scripts/validate_remaining_*.py

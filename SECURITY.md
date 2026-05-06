@@ -1,17 +1,11 @@
-# Security Policy
+# Security
 
-## Reporting a Vulnerability
-Please report suspected vulnerabilities privately to the maintainers.
-Do not open public issues for unpatched security problems.
+## Reporting Vulnerabilities
 
-Include:
-- Affected version/commit
-- Reproduction steps
-- Impact assessment
-- Suggested mitigation (if available)
+Please report security issues by opening a GitHub issue marked **[security]**, or email the maintainer directly if the issue is sensitive.
 
-## Scope
-Security-sensitive areas include:
-- Sandbox execution and shell command handling
-- Source archive extraction and path handling
-- API error leakage and credential handling
+## API Key Safety
+
+- Never commit `.env.local` or any file containing real API keys
+- `.gitignore` covers `.env` and `.env.*` — keep it that way
+- If you accidentally expose a key, rotate it immediately at the provider's dashboard

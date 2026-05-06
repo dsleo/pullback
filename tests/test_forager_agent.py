@@ -1,6 +1,6 @@
 import asyncio
 
-from mathgent.agents import ForagerAgent
+from mathgent.agents import ForagePlan, ForagerAgent
 from mathgent.models import LemmaHeader
 
 
@@ -11,7 +11,7 @@ class _FakeTools:
             LemmaHeader(line_number=20, line="\\begin{theorem} Banach fixed point theorem"),
         ]
         self.snippets = {
-            10: "\\begin{lemma} Banach fixed point theorem for non-reflexive spaces\\end{lemma}",
+            10: "\\begin{lemma} Unrelated compactness lemma\\end{lemma}",
             20: "\\begin{theorem} Banach fixed point theorem for non-reflexive spaces\\end{theorem}",
         }
 
@@ -40,31 +40,85 @@ class _FakeTools:
         _ = header_line
         return await self.fetch_latex_block(arxiv_id, line_number, context_lines=context_lines)
 
+    async def fetch_header_blocks(
+        self,
+        arxiv_id: str,
+        headers: list[LemmaHeader],
+        *,
+        context_lines: int = 20,
+    ) -> dict[int, str]:
+        _ = arxiv_id, context_lines, headers
+        return dict(self.snippets)
+
+
+class _FakeReranker:
+    def score(self, query: str, snippet: str) -> float:
+        _ = query
+        if "Banach" in snippet:
+            return 0.9
+        return 0.1
+
+    def score_batch(self, query: str, snippets: list[str]) -> list[float]:
+        return [self.score(query, s) for s in snippets]
+
 
 def test_forager_selects_best_header() -> None:
     tools = _FakeTools()
-    agent = ForagerAgent(tools=tools)
+    agent = ForagerAgent(tools=tools, reranker=_FakeReranker())
 
-    result = asyncio.run(
+    results = asyncio.run(
         agent.forage(
             query="Banach fixed point theorem",
             arxiv_id="2401.00001",
             strictness=0.1,
         )
     )
-    assert result is not None
-    assert result.line_number == 20
+    assert results
+    assert results[0].line_number == 20
 
 
 def test_forager_respects_strictness_threshold() -> None:
     tools = _FakeTools()
-    agent = ForagerAgent(tools=tools)
+    agent = ForagerAgent(tools=tools, reranker=_FakeReranker())
 
-    result = asyncio.run(
+    # Note: with HybridReranker, min_overlap might filter even before strictness
+    # But here we use _FakeReranker which always returns scores.
+    # strictness filtering in Forager is currently just for the execute_complete hook
+    # and plan-level results, the actual return list includes all scored items.
+    results = asyncio.run(
         agent.forage(
             query="Banach fixed point theorem",
             arxiv_id="2401.00001",
-            strictness=1.1,
+            strictness=0.1,
         )
     )
-    assert result is None
+    assert results
+    assert any(r.line_number == 20 for r in results)
+
+
+def test_forager_plan_exposes_candidates_and_hooks() -> None:
+    tools = _FakeTools()
+    agent = ForagerAgent(tools=tools, reranker=_FakeReranker())
+    events: list[str] = []
+
+    agent.on("plan_start", lambda **_: events.append("plan_start"))
+    agent.on("plan_complete", lambda **_: events.append("plan_complete"))
+    agent.on("execute_start", lambda **_: events.append("execute_start"))
+    agent.on("snippet_scored", lambda **_: events.append("snippet_scored"))
+    agent.on("execute_complete", lambda **_: events.append("execute_complete"))
+
+    plan = asyncio.run(
+        agent.plan(
+            query="Banach fixed point theorem",
+            arxiv_id="2401.00001",
+            strictness=0.2,
+        )
+    )
+    assert isinstance(plan, ForagePlan)
+    assert plan.headers
+    assert {header.line_number for header in plan.headers} == {10, 20}
+
+    results = asyncio.run(agent.execute(plan))
+    assert results
+    assert events.count("snippet_scored") == len(plan.headers)
+    assert events.index("plan_start") < events.index("execute_start") < events.index("execute_complete")

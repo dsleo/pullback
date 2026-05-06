@@ -1,0 +1,175 @@
+[
+  {
+    "arxiv_id": "1503.08320",
+    "ground_truth_label": "Proposition 19",
+    "paper_title": "The dual complex of Calabi--Yau pairs",
+    "query": "Can a log-smooth projective pair (X,D) which is log Calabi-Yau admit a morphism to a rational variety Y with D not surjecting to Y",
+    "theorems_in_paper": [],
+    "reason": "Theorem label 'Proposition 19' not found in paper source"
+  },
+  {
+    "arxiv_id": "1710.10113",
+    "ground_truth_label": "Theorem A.5",
+    "paper_title": "The Picard group of the moduli of smooth complete intersections of two quadrics",
+    "query": "Map between normal stacks giving an equivalence on K-points is an isomorphism",
+    "theorems_in_paper": [
+      "Corollary 2.2",
+      "Corollary 2.2.5",
+      "Corollary 4.6",
+      "Corollary 8.12.10",
+      "Definition 0.0.8",
+      "Definition 3.3",
+      "Lemma 2.3.9",
+      "Lemma 58.19.2",
+      "Lemma 7.2",
+      "Lemma 8.12.10.1"
+    ],
+    "reason": "Theorem label 'Theorem A.5' not found in paper source. Paper contains: Corollary 2.2, Corollary 2.2.5, Corollary 4.6, Corollary 8.12.10, Definition 0.0.8"
+  },
+  {
+    "arxiv_id": "1807.07417",
+    "ground_truth_label": "Corollary 1.5",
+    "paper_title": "Deformations of log canonical and F-pure singularities",
+    "query": "The relative dualizing complex commutes with base change for Du Bois families",
+    "theorems_in_paper": [
+      "Theorem A",
+      "Theorem B",
+      "Theorem C",
+      "Theorem D",
+      "Theorem E",
+      "Theorem S"
+    ],
+    "reason": "Theorem label 'Corollary 1.5' not found in paper source. Paper contains: Theorem A, Theorem B, Theorem C, Theorem D, Theorem E"
+  },
+  {
+    "arxiv_id": "2005.01513",
+    "ground_truth_label": "Theorem 0.2",
+    "paper_title": "The Integral Chow Ring of the Stack of 1-Pointed Hyperelliptic Curves",
+    "query": "(Integral) intersection theory of H_{g,1}",
+    "theorems_in_paper": [
+      "Corollary 4.7",
+      "Lemma 2.3",
+      "Lemma 3.2",
+      "Lemma 3.3",
+      "Lemma 3.4",
+      "Lemma 3.9",
+      "Lemma 99.6.2",
+      "Proposition 10.1.6",
+      "Proposition 19",
+      "Proposition 23"
+    ],
+    "reason": "Theorem label 'Theorem 0.2' not found in paper source. Paper contains: Corollary 4.7, Lemma 2.3, Lemma 3.2, Lemma 3.3, Lemma 3.4"
+  },
+  {
+    "arxiv_id": "2012.05327",
+    "ground_truth_label": "Corollary 11",
+    "paper_title": "Relative MMP without Q-factoriality",
+    "query": "Conditions on the singularities of a pair (Y,D) of dimension 3, with Y is smooth in dimension 2 and D is smooth",
+    "theorems_in_paper": [],
+    "reason": "Theorem label 'Corollary 11' not found in paper source"
+  },
+  {
+    "arxiv_id": "2102.07281",
+    "ground_truth_label": "Proposition 3.10",
+    "paper_title": "Boundary unique continuation on C1-Dini domains and the size of the singular set",
+    "query": "Monotonicity of the frequency function for elliptic operators on Dini domains",
+    "theorems_in_paper": [
+      "Corollary 1.2.22",
+      "Definition 1.16",
+      "Lemma 2.3",
+      "Lemma 3.2",
+      "Lemma 3.22",
+      "Lemma 35",
+      "Lemma 36",
+      "Theorem 1.1",
+      "Theorem 1.4.10",
+      "Theorem 1.4.3"
+    ],
+    "reason": "Theorem label 'Proposition 3.10' not found in paper source. Paper contains: Corollary 1.2.22, Definition 1.16, Lemma 2.3, Lemma 3.2, Lemma 3.22"
+  },
+  {
+    "arxiv_id": "2102.07281",
+    "ground_truth_label": "Proposition 5.24",
+    "paper_title": "Boundary unique continuation on C1-Dini domains and the size of the singular set",
+    "query": "Convergence of blow-ups of harmonic functions in Dini domains",
+    "theorems_in_paper": [
+      "Corollary 1.2.22",
+      "Definition 1.16",
+      "Lemma 2.3",
+      "Lemma 3.2",
+      "Lemma 3.22",
+      "Lemma 35",
+      "Lemma 36",
+      "Theorem 1.1",
+      "Theorem 1.4.10",
+      "Theorem 1.4.3"
+    ],
+    "reason": "Theorem label 'Proposition 5.24' not found in paper source. Paper contains: Corollary 1.2.22, Definition 1.16, Lemma 2.3, Lemma 3.2, Lemma 3.22"
+  },
+  {
+    "arxiv_id": "2112.01352",
+    "ground_truth_label": "Theorem 4.1",
+    "paper_title": "Boundedness of elliptic Calabi-Yau threefolds",
+    "query": "The divisor class group of a smooth variety with trivial cohomology is invariant under deformations",
+    "theorems_in_paper": [],
+    "reason": "Theorem label 'Theorem 4.1' not found in paper source"
+  },
+  {
+    "arxiv_id": "2209.14480",
+    "ground_truth_label": "Lemma 10",
+    "paper_title": "Du Bois properties of log centers",
+    "query": "Given (X,D) a family of log Calabi-Yau pairs over a base Z, and an effective divisor G<D. Assume that (X,D) is klt. Then the -G MMP terminates",
+    "theorems_in_paper": [
+      "Theorem 1"
+    ],
+    "reason": "Theorem label 'Lemma 10' not found in paper source. Paper contains: Theorem 1"
+  },
+  {
+    "arxiv_id": "2508.16507",
+    "ground_truth_label": "Lemma 17",
+    "paper_title": "Higher direct images of dualizing sheaves III",
+    "query": "The dualizing complex for a flat morphism of schemes is the derived tensor product of the relative dualizing complex and the derived pull back of dualizing complex",
+    "theorems_in_paper": [],
+    "reason": "Theorem label 'Lemma 17' not found in paper source"
+  },
+  {
+    "arxiv_id": "2508.16507",
+    "ground_truth_label": "Theorem 1",
+    "paper_title": "Higher direct images of dualizing sheaves III",
+    "query": "Given a family with total space with rational singularities, the higher derived push-forward of the structure sheaf commutes with base change",
+    "theorems_in_paper": [],
+    "reason": "Theorem label 'Theorem 1' not found in paper source"
+  },
+  {
+    "arxiv_id": "math/0412512",
+    "ground_truth_label": "Proposition 4.43",
+    "paper_title": "Notes on Grothendieck topologies, fibered categories and descent theory",
+    "query": "An morphism is a torsor if it is equivariant and locally is a torsor",
+    "theorems_in_paper": [],
+    "reason": "Could not download paper source"
+  },
+  {
+    "arxiv_id": "math/0412512",
+    "ground_truth_label": "Theorem 4.23",
+    "paper_title": "Notes on Grothendieck topologies, fibered categories and descent theory",
+    "query": "Quasi-coherent sheaves satisfy descent in the fpqc topology",
+    "theorems_in_paper": [],
+    "reason": "Could not download paper source"
+  },
+  {
+    "arxiv_id": "math/0603151",
+    "ground_truth_label": "Proposition 5.2.1",
+    "paper_title": "Gromov-Witten theory of Deligne-Mumford stacks",
+    "query": "Gluing and clutching morphisms for twisted stable maps",
+    "theorems_in_paper": [],
+    "reason": "Could not download paper source"
+  },
+  {
+    "arxiv_id": "math/9901021",
+    "ground_truth_label": "Corollary 1.9",
+    "paper_title": "Rationally connected varieties over local fields",
+    "query": "Unirationality specializes away from finitely many primes",
+    "theorems_in_paper": [],
+    "reason": "Could not download paper source"
+  }
+]

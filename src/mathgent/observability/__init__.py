@@ -1,3 +1,4 @@
+from .hooks import HookRegistry
 from .logging import (
     get_agent_instrumentation,
     get_logger,
@@ -9,6 +10,7 @@ from .logging import (
 )
 
 __all__ = [
+    "HookRegistry",
     "get_agent_instrumentation",
     "get_logger",
     "logfire_info",

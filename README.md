@@ -1,99 +1,203 @@
 # Mathgent
 
-Agentic theorem/lemma search over arXiv LaTeX sources.
+Agentic search engine for mathematical theorems and lemmas over arXiv LaTeX sources.
 
-## Stack
-- PydanticAI: Librarian orchestration + optional agentic query/discovery.
-- FastAPI: `/search` API.
-- Discovery providers: OpenAlex semantic + OpenAI web search.
-- Sandbox: E2B Code Interpreter (or local `.tex` directory).
-- Reranking: token overlap (default), optional BGE/ColBERT.
-- Logging/Tracing: Loguru + Logfire instrumentation.
+---
 
-## Current Structure
-- `src/mathgent/api/`: app factory, middleware, routes, dependency wiring.
-- `src/mathgent/settings.py`: single env/settings source.
-- `src/mathgent/models/`: request/response and domain models.
-- `src/mathgent/discovery/`: provider adapters, chain pipeline, arXiv metadata, ID parsing.
-- `src/mathgent/extraction/`: header grep parsing + bounded environment extraction.
-- `src/mathgent/tools/`: minimal agent-facing facades (`discovery`, `extraction`).
-- `src/mathgent/agents/`: forager implementation.
-- `src/mathgent/orchestration/`: librarian, query planner, discovery execution, result policy.
-- `src/mathgent/sandbox/`: local/E2B runners + source fetch.
+## How It Works
 
-## Search Pipeline
-1. Librarian receives `query`, `max_results`, `strictness`.
-2. Query planner generates attempt queries (deterministic heuristics or agentic model).
-3. Discovery chain runs providers in order (`openalex`, then `openai_search` by default).
-4. Candidate IDs are deduped.
-5. Forager runs on candidates in parallel:
-   - `get_paper_headers` (scan for theorem-like environments)
-   - `fetch_header_block` (single environment extraction around selected header)
-   - score and strictness gate
-6. Top results returned, enriched with title/authors when metadata is available.
-
-Constraint: no full `.tex` file is put into model context; extraction stays bounded per environment.
-
-## Modes
-- Deterministic mode:
-  - `MATHGENT_AGENTIC_QUERY_LOOP=0`
-  - `MATHGENT_AGENTIC_DISCOVERY=0`
-- Agentic mode:
-  - `MATHGENT_AGENTIC_QUERY_LOOP=1`
-  - `MATHGENT_AGENTIC_DISCOVERY=1`
-
-## API
-### Request
-```json
-{
-  "query": "Banach fixed point theorem for non-reflexive spaces",
-  "max_results": 3,
-  "strictness": 0.2
-}
+```
+Your query: "Banach fixed point theorem for non-reflexive spaces"
+      │
+      ▼
+┌─────────────────────────────────────────────────────────┐
+│  Librarian  (LibrarianOrchestrator)                     │
+│                                                         │
+│  1. Expands your query into 3–4 diverse variants        │
+│     (paper-style, statement-style, keyword-style)       │
+│                                                         │
+│  2. Sends all variants to discovery providers           │
+│     in parallel → collects arXiv paper IDs              │
+│                                                         │
+│  3. Dispatches a Forager to each candidate paper        │
+└─────────────────────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────────────────────────────┐
+│  Forager  (ForagerAgent)   [one per paper]              │
+│                                                         │
+│  1. Downloads the paper's LaTeX source                  │
+│  2. Scans for \begin{theorem}, \begin{lemma}, etc.      │
+│  3. Extracts the best-matching block                    │
+│  4. Scores it against your query                        │
+└─────────────────────────────────────────────────────────┘
+      │
+      ▼
+Ranked results — each with the matched theorem snippet
 ```
 
-### Response
-```json
+**Discovery providers** (run in parallel, configured via `MATHGENT_DISCOVERY_PROVIDERS`):
+- `openalex` — semantic search over 250M+ papers
+- `zbmath_open` — zbMATH Open mathematics database
+- `arxiv_api` — arXiv keyword/title search
+- `semantic_scholar` — Semantic Scholar API
+
+---
+
+## API Keys
+
+| Key | Required? | Purpose |
+|-----|-----------|---------|
+| `OPENAI_API_KEY` | One of these two¹ | LLM query planning + OpenAI embedding reranker |
+| `OPENROUTER_API_KEY` | One of these two¹ | LLM query planning via OpenRouter |
+| `E2B_API_KEY` | Yes² | Fetch arXiv LaTeX sources via E2B sandbox |
+| `OPENALEX_API_KEY` | Optional | Higher rate limits on OpenAlex discovery |
+| `OPENALEX_MAILTO` | Optional | Polite-pool access for OpenAlex (your email) |
+
+¹ **OpenAI or OpenRouter** — set `MATHGENT_LIBRARIAN_MODEL` accordingly:
+  - `openai:gpt-5-mini` → uses `OPENAI_API_KEY`
+  - `openrouter:anthropic/claude-3-haiku` → uses `OPENROUTER_API_KEY`
+
+  Note: if you use OpenRouter, also set `MATHGENT_RERANKER=token_overlap` (the default reranker requires `OPENAI_API_KEY`).
+
+² Not needed if you supply a local TeX cache via `MATHGENT_LOCAL_TEX_DIR`. See [data/tex_cache/README.md](data/tex_cache/README.md).
+
+> **Minimal free setup** — `MATHGENT_AGENTIC=0`, `MATHGENT_LIBRARIAN_MODEL=test`, `MATHGENT_RERANKER=token_overlap`, and a local TeX dir. No API keys required.
+
+---
+
+## Quick Start
+
+### Option A — HTTP API (recommended)
+
+\`\`\`bash
+# 1. Install
+uv venv && source .venv/bin/activate
+uv pip install -e .
+
+# 2. Configure
+cp .env.example .env.local
+# Edit .env.local — add your keys
+
+# 3. Start the server
+PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
+
+# 4. Search
+curl -X POST http://127.0.0.1:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Banach fixed point theorem", "max_results": 5, "strictness": 0.2}'
+\`\`\`
+
+### Option B — Direct Python usage
+
+\`\`\`python
+import asyncio
+from mathgent.settings import load_settings
+from mathgent.api.deps import build_orchestrator
+
+async def search(query: str):
+    settings = load_settings()          # this reads config.json + .env.local
+    orchestrator = build_orchestrator(settings)
+    response = await orchestrator.search(query, max_results=5, strictness=0.2)
+    for result in response.results:
+        print(f"{result.arxiv_id} | score={result.match.score:.2f}")
+        print(result.match.snippet)
+        print()
+
+asyncio.run(search("Banach fixed point theorem"))
+\`\`\`
+
+Run with:
+\`\`\`bash
+PYTHONPATH=src python your_script.py
+# or load your .env.local first:
+set -a && source .env.local && set +a && PYTHONPATH=src python your_script.py
+\`\`\`
+
+---
+
+## Request & Response
+
+\`\`\`json
+// POST /search
 {
-  "query": "...",
-  "max_results": 3,
-  "strictness": 0.2,
+  "query": "Banach fixed point theorem for non-reflexive spaces",
+  "max_results": 5,
+  "strictness": 0.2
+}
+\`\`\`
+
+\`\`\`json
+// Response
+{
   "results": [
     {
       "arxiv_id": "2509.13121",
-      "title": "...",
-      "authors": ["..."],
+      "title": "On fixed points in Banach spaces",
+      "authors": ["J. Smith"],
       "match": {
-        "arxiv_id": "2509.13121",
-        "line_number": 179,
-        "header_line": "\\begin{theorem}...",
-        "snippet": "...",
+        "header_line": "\\begin{theorem}[Main]",
+        "snippet": "Let $X$ be a Banach space and $T: X \\to X$ a contraction...",
         "score": 0.62
       }
     }
   ]
 }
-```
+\`\`\`
 
-## Config (minimal)
-See `.env.example` for the full list.
+**Parameters:**
+- `strictness` `[0.0–1.0]` — minimum relevance score to return a result. Start at `0.2`.
+- `max_results` — number of papers to return (default 5, max 20).
 
-Core:
-- `MATHGENT_TIMEOUT_SECONDS` (single shared timeout across core operations)
-- `MATHGENT_DISCOVERY_ORDER` (default `openalex,openai_search`)
-- `OPENALEX_API_KEY`, `OPENAI_API_KEY`, `OPENALEX_MAILTO`
+---
 
-Key orchestration knobs:
-- `MATHGENT_MAX_QUERY_ATTEMPTS`
-- `MATHGENT_MAX_REPLAN_ROUNDS`
-- `MATHGENT_DELEGATE_CONCURRENCY`
-- `MATHGENT_TOP_K_HEADERS`
+## Configuration
 
-## Run (uv-first)
-```bash
-uv venv
-source .venv/bin/activate
-uv pip install -e ".[dev]"
-python -m pytest
-PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
-```
+Settings come from `config.json` (base) with `.env.local` overrides. Copy `.env.example` → `.env.local`.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `MATHGENT_LIBRARIAN_MODEL` | `openai:gpt-4o-mini` | LLM for query planning. `test` = no LLM |
+| `MATHGENT_AGENTIC` | `1` | Enable query planning and replanning |
+| `MATHGENT_DISCOVERY_PROVIDERS` | `openalex,zbmath_open,arxiv_api,semantic_scholar` | Active providers |
+| `MATHGENT_RERANKER` | `auto` | `token_overlap`, `openai_embedding`, `hybrid_token_openai` |
+| `MATHGENT_TOP_K_HEADERS` | `15` | Max theorem headers extracted per paper |
+| `MATHGENT_DELEGATE_CONCURRENCY` | `5` | Parallel paper workers |
+| `MATHGENT_TIMEOUT_SECONDS` | `60.0` | Shared timeout for all I/O |
+| `MATHGENT_LOCAL_TEX_DIR` | _(unset)_ | Path to local `.tex` file cache (avoids E2B) |
+
+---
+
+## Development
+
+\`\`\`bash
+pytest                        # run all tests
+ruff check src/ tests/        # lint
+ruff format src/ tests/       # format
+mypy src/                     # type check
+\`\`\`
+
+---
+
+## Architecture
+
+\`\`\`
+src/mathgent/
+├── api/              FastAPI app, routes, dependency injection
+├── orchestration/    LibrarianOrchestrator, QueryPlannerService
+├── discovery/        Provider adapters (OpenAlex, zbMATH, arXiv, Semantic Scholar)
+│   └── providers/
+├── extraction/       HeaderGrepper, BoundedBlockExtractor, theorem numbering
+├── agents/           ForagerAgent (per-paper extraction + scoring)
+├── rerank/           Reranker backends (token overlap, BGE, ColBERT, OpenAI, hybrid)
+├── sandbox/          E2B and local LaTeX source runners
+├── models/           Domain and API models
+├── tools/            Agent tool facades (discovery, extraction)
+└── observability/    Loguru logging, Logfire tracing, hook registry
+\`\`\`
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

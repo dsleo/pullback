@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from ..extraction import extract_environment_token
-from ..extraction.blocks import fetch_latex_block
+from ..extraction.numbering import get_theorem_labels
+from ..extraction.blocks import fetch_latex_block, fetch_latex_blocks
 from ..extraction.headers import get_paper_headers
 from ..models import LemmaHeader
 from ..sandbox import SandboxRunner
@@ -49,6 +50,29 @@ class ExtractionTools:
             context_lines=context_lines,
             environment_name=environment_name,
         )
+
+    async def fetch_header_blocks(
+        self,
+        arxiv_id: str,
+        headers: list[LemmaHeader],
+        *,
+        context_lines: int = 20,
+    ) -> dict[int, str]:
+        return await fetch_latex_blocks(
+            self._sandbox,
+            arxiv_id,
+            headers,
+            context_lines=context_lines,
+        )
+
+    async def get_theorem_labels(self, arxiv_id: str) -> list[str]:
+        return await get_theorem_labels(self._sandbox, arxiv_id)
+
+    async def delete_paper(self, arxiv_id: str) -> None:
+        """Free E2B disk space after a paper has been fully processed."""
+        fn = getattr(self._sandbox, "delete_paper", None)
+        if callable(fn):
+            await fn(arxiv_id)
 
     def close(self) -> None:
         self._sandbox.close()

@@ -1,4 +1,4 @@
-"""Environment-backed settings for discovery, orchestration, and reranking."""
+"""Config-backed settings for discovery, orchestration, and reranking."""
 
 from __future__ import annotations
 
@@ -6,11 +6,20 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 
+from .config import get_config
+
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
         return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_optional_bool(name: str) -> bool | None:
+    raw = os.getenv(name)
+    if raw is None:
+        return None
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -55,18 +64,33 @@ class OpenAlexSettings:
 
 
 @dataclass(frozen=True)
+class OpenRouterSearchSettings:
+    api_key: str | None
+    model_name: str = "openai/gpt-4o-mini"
+    max_output_tokens: int = 400
+
+
+@dataclass(frozen=True)
 class OpenAISearchSettings:
     api_key: str | None
-    model_name: str = "gpt-5-mini"
-    max_output_tokens: int = 2000
+    model_name: str = "gpt-4o-mini"
+    max_output_tokens: int = 400
+
+
+@dataclass(frozen=True)
+class SemanticScholarSettings:
+    api_key: str | None
 
 
 @dataclass(frozen=True)
 class DiscoverySettings:
-    provider_order: list[str]
+    providers: list[str]
     timeout_seconds: float
+    provider_timeout_seconds: float  # per-provider timeout, all run in parallel
     openalex: OpenAlexSettings
+    openrouter_search: OpenRouterSearchSettings
     openai_search: OpenAISearchSettings
+    semantic_scholar: SemanticScholarSettings
 
 
 @dataclass(frozen=True)
@@ -79,8 +103,7 @@ class LibrarianSettings:
     model_name: str
     delegate_concurrency: int
     top_k_headers: int
-    agentic_query_loop: bool
-    agentic_discovery: bool
+    agentic: bool
     max_query_attempts: int
     max_replan_rounds: int
     timeout_seconds: float
@@ -92,6 +115,8 @@ class RerankSettings:
     strategy: str
     colbert_endpoint: str | None
     bge_model: str | None
+    openrouter_model: str | None
+    api_key: str | None
 
 
 @dataclass(frozen=True)
@@ -103,43 +128,64 @@ class AppSettings:
 
 
 def load_settings() -> AppSettings:
-    timeout_seconds = _env_float("MATHGENT_TIMEOUT_SECONDS", 30.0, minimum=0.1)
-    provider_order = _env_list("MATHGENT_DISCOVERY_ORDER", ["openalex", "openai_search"])
+    cfg = get_config()
+
+    # Retrieval settings
+    timeout_seconds = cfg["execution"]["timeout_seconds"]
+    providers = list(cfg["retrieval"]["discovery_providers"])
+
+    provider_timeout_seconds = float(
+        cfg["execution"].get("provider_timeout_seconds", timeout_seconds)
+    )
 
     discovery = DiscoverySettings(
-        provider_order=provider_order,
+        providers=providers,
         timeout_seconds=timeout_seconds,
+        provider_timeout_seconds=provider_timeout_seconds,
         openalex=OpenAlexSettings(
-            api_key=os.getenv("OPENALEX_API_KEY"),
-            mailto=os.getenv("OPENALEX_MAILTO"),
+            api_key=cfg["providers"]["openalex"]["api_key"],
+            mailto=cfg["providers"]["openalex"]["mailto"],
+        ),
+        openrouter_search=OpenRouterSearchSettings(
+            api_key=cfg.get("providers", {}).get("openrouter", {}).get("api_key"),
+            model_name=cfg["models"].get("llm_search", "openai/gpt-4o-mini"),
+            max_output_tokens=cfg.get("providers", {}).get("openrouter", {}).get("max_output_tokens", 400),
         ),
         openai_search=OpenAISearchSettings(
             api_key=os.getenv("OPENAI_API_KEY"),
-            model_name=os.getenv("MATHGENT_OPENAI_SEARCH_MODEL", "gpt-4.1-mini"),
-            max_output_tokens=_env_int("MATHGENT_OPENAI_SEARCH_MAX_OUTPUT_TOKENS", 400, minimum=50),
+            model_name=cfg["models"].get("llm_search", "gpt-4o-mini"),
+            max_output_tokens=cfg.get("providers", {}).get("openrouter", {}).get("max_output_tokens", 400),
+        ),
+        semantic_scholar=SemanticScholarSettings(
+            api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
         ),
     )
 
-    local_tex_dir_raw = os.getenv("MATHGENT_LOCAL_TEX_DIR")
+    # Sandbox settings
+    local_tex_dir_raw = cfg["sandbox"]["local_tex_dir"]
     local_tex_dir = Path(local_tex_dir_raw).expanduser().resolve() if local_tex_dir_raw else None
 
-    librarian_model = os.getenv("MATHGENT_LIBRARIAN_MODEL", "test")
+    # Librarian settings
+    librarian_model = cfg["models"]["librarian"]
+    agentic = cfg["features"]["agentic"]
     librarian = LibrarianSettings(
         model_name=librarian_model,
-        delegate_concurrency=_env_int("MATHGENT_DELEGATE_CONCURRENCY", 4, minimum=1),
-        top_k_headers=_env_int("MATHGENT_TOP_K_HEADERS", 10, minimum=1),
-        agentic_query_loop=_env_bool("MATHGENT_AGENTIC_QUERY_LOOP", True),
-        agentic_discovery=_env_bool("MATHGENT_AGENTIC_DISCOVERY", True),
-        max_query_attempts=_env_int("MATHGENT_MAX_QUERY_ATTEMPTS", 2, minimum=1),
-        max_replan_rounds=_env_int("MATHGENT_MAX_REPLAN_ROUNDS", 2, minimum=1),
+        delegate_concurrency=cfg["execution"]["concurrency"],
+        top_k_headers=cfg["retrieval"]["top_k_headers"],
+        agentic=agentic,
+        max_query_attempts=cfg["retrieval"]["max_query_attempts"],
+        max_replan_rounds=cfg["execution"]["max_replan_rounds"],
         timeout_seconds=timeout_seconds,
-        query_planner_model_name=os.getenv("MATHGENT_QUERY_PLANNER_MODEL"),
+        query_planner_model_name=cfg["models"]["query_planner"],
     )
 
+    # Ranking settings
     rerank = RerankSettings(
-        strategy=os.getenv("MATHGENT_RERANKER", "auto"),
-        colbert_endpoint=os.getenv("MATHGENT_COLBERT_ENDPOINT"),
-        bge_model=os.getenv("MATHGENT_BGE_MODEL"),
+        strategy=cfg["ranking"]["reranker"],
+        colbert_endpoint=cfg["ranking"]["colbert_endpoint"],
+        bge_model=cfg["ranking"]["bge_model"],
+        openrouter_model=cfg["ranking"].get("openrouter_model", "cohere/rerank-v3.5"),
+        api_key=cfg.get("providers", {}).get("openrouter", {}).get("api_key"),
     )
 
     return AppSettings(

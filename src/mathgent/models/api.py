@@ -18,3 +18,7 @@ class SearchResponse(BaseModel):
     max_results: int
     strictness: float
     results: list[SearchResultEntry]
+    paper_query: str | None = None
+    statement_query: str | None = None
+    discovery_queries: list[str] | None = None
+    forager_query: str | None = None

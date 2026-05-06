@@ -1,20 +1,32 @@
 # Contributing
 
-## Classic Development Setup
-1. `uv venv`
-2. `source .venv/bin/activate`
-3. `uv pip install -e ".[dev]"`
+## Setup
 
-## Local Checks
-1. `python -m pytest`
-2. `ruff check src tests`
-3. `mypy src`
-4. `bandit -q -r src`
-5. `pip-audit`
+```bash
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
+cp .env.example .env.local  # fill in your keys
+```
+
+## Tests
+
+```bash
+pytest               # all tests
+pytest -k "test_foo" # specific test
+```
+
+For tests that hit real APIs, set `MATHGENT_LIBRARIAN_MODEL=test` to avoid LLM calls.
+
+## Code Quality
+
+```bash
+ruff check src/ tests/   # lint
+ruff format src/ tests/  # format
+mypy src/                # type check
+```
 
 ## Pull Requests
-- Be reasonable and keep changes scoped and documented.
-- Add or update tests for behavioral changes.
-- Keep API contract for `POST /search` backward compatible unless intentionally versioned.
 
-Thanks.
+- One logical change per PR
+- Tests must pass (`pytest`)
+- No secrets in code or config files — use `.env.local` (gitignored)

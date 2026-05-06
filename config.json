@@ -1,0 +1,56 @@
+{
+  "retrieval": {
+    "discovery_providers": [
+      "openalex",
+      "zbmath_open",
+      "arxiv_api",
+      "semantic_scholar"
+    ],
+    "top_k_headers": 15,
+    "max_query_attempts": 4
+  },
+  "execution": {
+    "concurrency": 5,
+    "timeout_seconds": 60.0,
+    "provider_timeout_seconds": 15.0,
+    "max_replan_rounds": 2
+  },
+  "models": {
+    "librarian": "openai:gpt-4o-mini",
+    "query_planner": null,
+    "llm_search": "openai:gpt-4o-mini"
+  },
+  "ranking": {
+    "reranker": "hybrid_token_openai",
+    "colbert_endpoint": null,
+    "bge_model": null
+  },
+  "sandbox": {
+    "local_tex_dir": null,
+    "e2b_timeout_seconds": 3600,
+    "e2b_operation_timeout_seconds": 120
+  },
+  "observability": {
+    "log_level": "INFO",
+    "log_json": false,
+    "log_file_enabled": true,
+    "log_file": "logs/mathgent.log",
+    "log_file_rotation": "20 MB",
+    "log_file_retention": "14 days",
+    "enable_logfire": true,
+    "logfire_send": false,
+    "pydanticai_instrument": true,
+    "service_name": "mathgent"
+  },
+  "providers": {
+    "openalex": {
+      "api_key": null,
+      "mailto": null
+    }
+  },
+  "features": {
+    "agentic": true,
+    "disable_metadata_fetch": false,
+    "numbering_count_labels": false
+  }
+}
