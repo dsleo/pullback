@@ -15,6 +15,7 @@ logs/
 # Large benchmark/iteration artifacts
 data/theorem_dataset_*.jsonl
 data/benchmark_papers_tex/
+data/tex_cache/*.tex
 data/benchmark_new*.jsonl
 data/remaining_39_validation.*
 data/REMAINING_39_REPORT.md
