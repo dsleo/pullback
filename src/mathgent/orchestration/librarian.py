@@ -185,74 +185,74 @@ class LibrarianOrchestrator:
                     log.info("search.no_new_attempts round={} seed_query={}", round_index, seed_query)
                     break
 
-                for attempt_index, attempt_query in enumerate(round_attempts):
-                    executed_attempts += 1
-                    is_raw_query = (attempt_index == 0 and round_index == 1)
-                    arxiv_ids = await self._discover_arxiv_ids(attempt_query, candidate_budget, is_raw_query=is_raw_query)
+                # Fire all discovery for this round in parallel
+                async def _discover_one(idx: int, attempt_query: str) -> tuple[str, list[str]]:
+                    is_raw = (idx == 0 and round_index == 1)
+                    ids = await self._discover_arxiv_ids(attempt_query, candidate_budget, is_raw_query=is_raw)
+                    return attempt_query, ids
+
+                discovery_pairs: list[tuple[str, list[str]]] = list(
+                    await asyncio.gather(*(_discover_one(i, q) for i, q in enumerate(round_attempts)))
+                )
+                executed_attempts += len(round_attempts)
+
+                # Deduplicate across attempts, preserving round order
+                round_fresh_ids: list[str] = []
+                for attempt_query, arxiv_ids in discovery_pairs:
                     fresh_ids: list[str] = []
                     for arxiv_id in arxiv_ids:
                         if arxiv_id in seen_arxiv_ids:
                             continue
                         seen_arxiv_ids.add(arxiv_id)
                         fresh_ids.append(arxiv_id)
+                        round_fresh_ids.append(arxiv_id)
                     log.info(
-                        "search.ids round={} attempt={} query={} count={} candidate_budget={} ids={}",
+                        "search.ids round={} query={} count={} candidate_budget={}",
                         round_index,
-                        executed_attempts,
                         attempt_query,
                         len(fresh_ids),
                         candidate_budget,
-                        fresh_ids,
                     )
 
-                    indexed_results = await self._run_foragers(
-                        arxiv_ids=fresh_ids,
-                        query=forager_query,
-                        strictness=strictness,
-                    )
-                    
-                    # Instead of just merging paper-level results, we aggregate all candidates
-                    # and rerank them across all papers using the slow pass (OpenAI embeddings).
-                    all_candidates: list[LemmaMatch] = []
+                # Forage all fresh IDs from this round together, then do one global rerank pass
+                indexed_results = await self._run_foragers(
+                    arxiv_ids=round_fresh_ids,
+                    query=forager_query,
+                    strictness=strictness,
+                )
+
+                all_candidates: list[LemmaMatch] = []
+                for _, res in indexed_results:
+                    all_candidates.extend(res.candidates)
+
+                if all_candidates:
+                    with trace_span("librarian.global_rerank", count=len(all_candidates)):
+                        max_snippet_chars = 8000
+                        candidate_snippets = [c.snippet[:max_snippet_chars] if c.snippet else "" for c in all_candidates]
+                        if self._ranking_strategy == "hybrid_token_openai" and not forager_query.startswith("test:"):
+                            reranker = OpenAIEmbeddingReranker()
+                            try:
+                                global_scores = reranker.score_batch(forager_query, candidate_snippets)
+                                for candidate, score in zip(all_candidates, global_scores):
+                                    candidate.score = score
+                            except Exception as e:
+                                log.warning("global_rerank.failed error={}", e)
+
                     for _, res in indexed_results:
-                        all_candidates.extend(res.candidates)
-                    
-                    if all_candidates:
-                        with trace_span("librarian.global_rerank", count=len(all_candidates)):
-                            # Truncate snippets to avoid exceeding OpenAI's 8192 token limit
-                            # Rough estimate: ~1 char ≈ 0.25 tokens, so limit to ~8000 chars per snippet to be safe
-                            max_snippet_chars = 8000
-                            candidate_snippets = [c.snippet[:max_snippet_chars] if c.snippet else "" for c in all_candidates]
+                        res.candidates.sort(key=lambda m: m.score, reverse=True)
+                        res.match = res.candidates[0] if res.candidates else None
 
-                            # Use dedicated OpenAIEmbeddingReranker for global pass if the system is configured for semantic ranking.
-                            # We check if we should do this based on the strategy.
-                            if self._ranking_strategy == "hybrid_token_openai" and not forager_query.startswith("test:"):
-                                reranker = OpenAIEmbeddingReranker()
-                                try:
-                                    global_scores = reranker.score_batch(forager_query, candidate_snippets)
-                                    for candidate, score in zip(all_candidates, global_scores):
-                                        candidate.score = score
-                                except Exception as e:
-                                    log.warning("global_rerank.failed error={}", e)
-                                    # Fallback: keep existing scores from forager
-                        
-                        # Re-organize candidate results back into indexed_results
-                        # For each paper, we take the best match after global scoring
-                        for _, res in indexed_results:
-                            res.candidates.sort(key=lambda m: m.score, reverse=True)
-                            res.match = res.candidates[0] if res.candidates else None
+                next_index = ResultPolicy.merge_indexed_results(
+                    aggregate_results=aggregate_results,
+                    incoming_results=indexed_results,
+                    next_index=next_index,
+                )
 
-                    next_index = ResultPolicy.merge_indexed_results(
-                        aggregate_results=aggregate_results,
-                        incoming_results=indexed_results,
-                        next_index=next_index,
-                    )
-
-                    selected_results = ResultPolicy.rank_and_trim_results(
-                        indexed_results=list(aggregate_results.values()),
-                        max_results=max_results,
-                    )
-                    matched = sum(1 for item in selected_results if item.match is not None)
+                selected_results = ResultPolicy.rank_and_trim_results(
+                    indexed_results=list(aggregate_results.values()),
+                    max_results=max_results,
+                )
+                matched = sum(1 for item in selected_results if item.match is not None)
 
                 if matched >= max_results:
                     log.info("search.replan_skipped reason=full_results matched={} round={}", matched, round_index)
@@ -347,17 +347,16 @@ class LibrarianOrchestrator:
         query: str,
         strictness: float,
     ) -> list[IndexedResult]:
-        indexed_results: list[IndexedResult] = []
-        concurrency = self._settings.delegate_concurrency
-        for batch_start in range(0, len(arxiv_ids), concurrency):
-            batch = arxiv_ids[batch_start : batch_start + concurrency]
-            batch_results = await asyncio.gather(
-                *(self._run_one(batch_start + i, arxiv_id, query, strictness) for i, arxiv_id in enumerate(batch))
-            )
-            indexed_results.extend(batch_results)
+        if not arxiv_ids:
+            return []
+        semaphore = asyncio.Semaphore(self._settings.delegate_concurrency)
 
-        indexed_results.sort(key=lambda item: item[0])
-        return indexed_results
+        async def _run_with_sem(i: int, arxiv_id: str) -> IndexedResult:
+            async with semaphore:
+                return await self._run_one(i, arxiv_id, query, strictness)
+
+        results = await asyncio.gather(*(_run_with_sem(i, aid) for i, aid in enumerate(arxiv_ids)))
+        return sorted(results, key=lambda item: item[0])
 
     async def _attach_metadata(self, results: list[SearchResultEntry]) -> list[SearchResultEntry]:
         if self._metadata_fetcher is None or not results:
