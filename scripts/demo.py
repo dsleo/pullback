@@ -460,13 +460,6 @@ function handle(ev) {
   else if (ev.type === 'search_done') {
     es.close(); es = null;
     document.getElementById('search-btn').disabled = false;
-    if (ev.papers) {
-      ev.papers.forEach(m => {
-        const p = paperData[m.arxiv_id];
-        if (p) { if (m.title) p.title = m.title; if (m.authors) p.authors = m.authors; }
-      });
-      renderPapers();
-    }
     status.textContent = `${ev.matched} match${ev.matched !== 1 ? 'es' : ''} · ${ev.total} papers reviewed · ${ev.latency_s.toFixed(1)}s`;
   }
 
@@ -561,8 +554,34 @@ async def _search_stream(query: str, max_results: int, strictness: float):
         await push({"type": "query_start", "query": query,
                     "max_results": max_results, "strictness": strictness})
 
+    # Track which IDs have already had metadata fetched to avoid duplicate calls
+    fetched_metadata_ids: set[str] = set()
+
+    async def _fetch_and_push_metadata(ids: list[str]) -> None:
+        if orch._metadata_fetcher is None:
+            return
+        new_ids = [aid for aid in ids if aid not in fetched_metadata_ids]
+        if not new_ids:
+            return
+        fetched_metadata_ids.update(new_ids)
+        try:
+            meta = await orch._metadata_fetcher(new_ids)
+            if meta:
+                papers = [
+                    {"arxiv_id": aid, "title": m.title, "authors": list(m.authors or [])}
+                    for aid, m in meta.items()
+                    if m.title
+                ]
+                if papers:
+                    await push({"type": "metadata_update", "papers": papers})
+        except Exception:
+            pass  # metadata is best-effort
+
     async def on_discovery_done(*, query, arxiv_ids, **_):
         await push({"type": "discovery", "query": query, "arxiv_ids": list(arxiv_ids)})
+        # Kick off metadata fetch in background so titles appear immediately
+        if arxiv_ids:
+            asyncio.create_task(_fetch_and_push_metadata(list(arxiv_ids)))
 
     async def on_worker_start(*, state, **_):
         await push({"type": "worker_start", "arxiv_id": state.arxiv_id})
@@ -579,15 +598,8 @@ async def _search_stream(query: str, max_results: int, strictness: float):
                         "snippet": None, "header": None})
 
     async def on_search_done(*, results, matched, latency_s, **_):
-        papers_meta = [
-            {"arxiv_id": r.arxiv_id,
-             "title": r.title,
-             "authors": list(r.authors) if r.authors else []}
-            for r in results
-        ]
         await push({"type": "search_done", "matched": matched,
-                    "total": len(results), "latency_s": latency_s,
-                    "papers": papers_meta})
+                    "total": len(results), "latency_s": latency_s})
         await queue.put(None)
 
     orch.on("search_start",   on_search_start)
