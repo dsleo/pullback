@@ -33,104 +33,203 @@ _HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>mathgent demo</title>
+<title>mathgent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&family=Lora:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
 <style>
+  /* ── Ivory Ledger tokens ─────────────────────────────────────────── */
+  :root {
+    --c-bg:          #fafadf;
+    --c-bg-alt:      #f2f2d2;
+    --c-bg-inset:    #efefcf;
+    --c-fg:          #1a1a16;
+    --c-fg-2:        #5e5e54;
+    --c-fg-3:        #8a8a80;
+    --c-border:      #1a1a16;
+    --c-border-soft: rgba(26,26,22,.18);
+    --f-sans:   "Jost", system-ui, sans-serif;
+    --f-mono:   "JetBrains Mono", monospace;
+    --f-serif:  "Lora", Georgia, serif;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-         background: #f5f5f7; color: #1d1d1f; }
+  html, body { background: var(--c-bg); color: var(--c-fg); }
+  body { font-family: var(--f-sans); font-weight: 300; font-size: 15px;
+         -webkit-font-smoothing: antialiased; }
 
-  /* ── header ── */
-  header { background: #1d1d1f; color: #fff; padding: 14px 28px;
-           display: flex; align-items: center; gap: 14px; }
-  header h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.4px; }
-  header span { font-size: .8rem; opacity: .45; }
+  /* ── header ────────────────────────────────────────────────────────── */
+  header {
+    border-bottom: 1px solid var(--c-border);
+    padding: 20px 48px;
+    display: flex; align-items: baseline; gap: 20px;
+    background: var(--c-bg);
+  }
+  header h1 {
+    font-family: var(--f-sans); font-weight: 200; font-size: 1.5rem;
+    letter-spacing: -.02em; color: var(--c-fg);
+  }
+  header span {
+    font-family: var(--f-mono); font-size: .65rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--c-fg-3);
+  }
 
-  /* ── search bar ── */
-  .search-bar { background: #fff; border-bottom: 1px solid #e0e0e0;
-                padding: 16px 28px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .search-bar input[type=text] { flex: 1; min-width: 200px; padding: 9px 13px;
-    border: 1px solid #ccc; border-radius: 8px; font-size: .95rem; outline: none; }
-  .search-bar input[type=text]:focus { border-color: #0066cc;
-    box-shadow: 0 0 0 3px rgba(0,102,204,.12); }
-  .search-bar input[type=number] { width: 72px; padding: 9px 8px;
-    border: 1px solid #ccc; border-radius: 8px; font-size: .95rem; outline: none; }
-  .search-bar label { font-size: .82rem; color: #666; white-space: nowrap;
-                      display: flex; align-items: center; gap: 5px; }
-  #search-btn { padding: 9px 20px; background: #0066cc; color: #fff; border: none;
-    border-radius: 8px; font-size: .95rem; font-weight: 500; cursor: pointer; }
-  #search-btn:hover { background: #0055aa; }
-  #search-btn:disabled { background: #aaa; cursor: default; }
+  /* ── search bar ─────────────────────────────────────────────────────── */
+  .search-bar {
+    border-bottom: 1px solid var(--c-border-soft);
+    padding: 18px 48px; display: flex; gap: 16px; align-items: baseline;
+    background: var(--c-bg);
+  }
+  .search-bar input[type=text] {
+    flex: 1; border: none; border-bottom: 1px solid var(--c-border);
+    background: transparent; padding: 6px 0; font-family: var(--f-sans);
+    font-size: .95rem; font-weight: 300; color: var(--c-fg); outline: none;
+  }
+  .search-bar input[type=text]::placeholder { color: var(--c-fg-3); }
+  .search-bar input[type=text]:focus { border-bottom-width: 2px; }
+  .search-bar label {
+    font-family: var(--f-mono); font-size: .65rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--c-fg-2);
+    display: flex; align-items: baseline; gap: 7px;
+  }
+  .search-bar input[type=number] {
+    width: 52px; border: none; border-bottom: 1px solid var(--c-border-soft);
+    background: transparent; font-family: var(--f-mono); font-size: .85rem;
+    font-weight: 400; color: var(--c-fg); outline: none; text-align: center;
+    padding: 4px 0;
+  }
+  #search-btn {
+    font-family: var(--f-mono); font-size: .65rem; font-weight: 500;
+    letter-spacing: .14em; text-transform: uppercase;
+    background: var(--c-fg); color: var(--c-bg);
+    border: none; padding: 8px 20px; cursor: pointer;
+  }
+  #search-btn:hover { opacity: .82; }
+  #search-btn:disabled { opacity: .35; cursor: default; }
 
-  /* ── main layout ── */
-  .main { max-width: 960px; margin: 24px auto; padding: 0 20px; display: flex;
-          flex-direction: column; gap: 16px; }
+  /* ── main ───────────────────────────────────────────────────────────── */
+  .main { max-width: 880px; margin: 40px auto; padding: 0 48px;
+          display: flex; flex-direction: column; gap: 28px; }
 
-  /* ── stats bar ── */
-  .stats-bar { display: flex; gap: 10px; flex-wrap: wrap; }
-  .stat-chip { background: #fff; border: 1px solid #e0e0e0; border-radius: 20px;
-    padding: 5px 14px; font-size: .82rem; color: #555; display: flex; align-items: center; gap: 6px; }
-  .stat-chip .val { font-weight: 700; color: #1d1d1f; }
-  .stat-chip.accent { border-color: #a5d6a7; background: #f1f8f1; }
+  /* ── status ─────────────────────────────────────────────────────────── */
+  #status-text {
+    font-family: var(--f-mono); font-size: .7rem; letter-spacing: .08em;
+    color: var(--c-fg-3); min-height: 18px;
+  }
 
-  /* ── query panel ── */
-  .panel { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden; }
-  .panel-head { padding: 10px 16px; font-size: .82rem; font-weight: 600; color: #555;
-                text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid #f0f0f0;
-                display: flex; align-items: center; gap: 8px; }
-  .panel-body { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; min-height: 38px; }
+  /* ── stats bar ──────────────────────────────────────────────────────── */
+  .stats-bar { display: flex; gap: 0; border: 1px solid var(--c-border); }
+  .stat-chip {
+    flex: 1; padding: 10px 16px; border-right: 1px solid var(--c-border);
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .stat-chip:last-child { border-right: none; }
+  .stat-chip .slabel {
+    font-family: var(--f-mono); font-size: .58rem; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--c-fg-3);
+  }
+  .stat-chip .val {
+    font-family: var(--f-sans); font-weight: 200; font-size: 1.6rem;
+    line-height: 1; color: var(--c-fg);
+  }
 
-  .query-badge { display: flex; align-items: center; gap: 6px; border-radius: 20px;
-                 padding: 5px 12px; font-size: .82rem; border: 1px solid; cursor: default; }
-  .query-badge.original { background: #e8f0fe; border-color: #a8c3fb; color: #1a5dc5; }
-  .query-badge.variant  { background: #f3e8fd; border-color: #cca8f6; color: #6a1fa8; }
-  .query-badge .qlabel  { font-size: .72rem; font-weight: 700; opacity: .7; text-transform: uppercase; }
-  .query-badge .qtext   { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* ── query panel ─────────────────────────────────────────────────────── */
+  .section-label {
+    font-family: var(--f-mono); font-size: .62rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--c-fg-3);
+    padding-bottom: 8px; border-bottom: 1px solid var(--c-border-soft);
+  }
+  .query-panel { display: flex; flex-direction: column; gap: 12px; }
+  .query-list  { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; }
+  .query-badge {
+    display: inline-flex; align-items: baseline; gap: 7px;
+    border: 1px solid var(--c-border); padding: 5px 12px;
+    background: var(--c-bg);
+  }
+  .query-badge.variant { border-color: var(--c-border-soft); }
+  .qlabel {
+    font-family: var(--f-mono); font-size: .58rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--c-fg-3);
+  }
+  .qtext { font-size: .82rem; font-weight: 300; color: var(--c-fg); }
 
-  /* ── paper cards ── */
-  #papers { display: flex; flex-direction: column; gap: 8px; }
+  /* ── paper cards ─────────────────────────────────────────────────────── */
+  #papers { display: flex; flex-direction: column; gap: 0;
+            border-top: 1px solid var(--c-border); }
 
-  .paper-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; overflow: hidden;
-                transition: border-color .15s; }
-  .paper-card.matched  { border-left: 4px solid #27ae60; }
-  .paper-card.no-match { border-left: 4px solid #ccc; opacity: .72; }
-  .paper-card.working  { border-left: 4px solid #f0a500; }
-  .paper-card.pending  { border-left: 4px solid #ddd; opacity: .6; }
+  .paper-card {
+    border-bottom: 1px solid var(--c-border-soft);
+    background: var(--c-bg);
+    transition: background .12s;
+  }
+  .paper-card.matched  { background: var(--c-bg); }
+  .paper-card.no-match { opacity: .55; }
+  .paper-card.working  { }
+  .paper-card.pending  { opacity: .38; }
 
-  .card-toggle { width: 100%; background: none; border: none; cursor: pointer; padding: 12px 16px;
-                 display: flex; align-items: flex-start; gap: 10px; text-align: left; }
-  .card-toggle:hover { background: #fafafa; }
+  .card-toggle {
+    width: 100%; background: none; border: none; cursor: pointer;
+    padding: 16px 0; display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 10px; text-align: left; align-items: start;
+  }
+  .card-toggle:hover { background: var(--c-bg-inset); }
 
-  .card-chevron { font-size: .75rem; color: #aaa; margin-top: 3px; flex-shrink: 0;
-                  transition: transform .15s; }
+  .card-chevron {
+    font-family: var(--f-mono); font-size: .65rem; color: var(--c-fg-3);
+    padding-top: 3px; justify-self: center; transition: transform .12s;
+    user-select: none;
+  }
   .card-chevron.open { transform: rotate(90deg); }
 
-  .card-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; margin-top: 1px; }
-  .card-main { flex: 1; min-width: 0; }
+  .card-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .card-title {
+    font-family: var(--f-serif); font-style: italic;
+    font-size: .95rem; font-weight: 400; color: var(--c-fg);
+    line-height: 1.35;
+  }
+  .card-authors {
+    font-family: var(--f-sans); font-size: .75rem; font-weight: 300;
+    color: var(--c-fg-2);
+  }
+  .card-arxiv-id {
+    font-family: var(--f-mono); font-size: .7rem; color: var(--c-fg-3);
+  }
+  .card-substatus {
+    font-family: var(--f-mono); font-size: .62rem; letter-spacing: .06em;
+    color: var(--c-fg-3); margin-top: 2px;
+  }
 
-  .card-title { font-size: .9rem; font-weight: 600; color: #1d1d1f;
-                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-authors { font-size: .78rem; color: #777; margin-top: 2px;
-                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-arxiv-id { font-size: .75rem; color: #aaa; }
+  .card-right {
+    display: flex; flex-direction: column; align-items: flex-end;
+    gap: 5px; flex-shrink: 0; padding-right: 0;
+  }
+  .card-score {
+    font-family: var(--f-mono); font-size: .8rem; font-weight: 500;
+    color: var(--c-fg);
+  }
+  .card-score.low { color: var(--c-fg-3); }
+  .arxiv-link {
+    font-family: var(--f-mono); font-size: .62rem; letter-spacing: .06em;
+    color: var(--c-fg-2); text-decoration: none; border-bottom: 1px solid var(--c-border-soft);
+  }
+  .arxiv-link:hover { border-bottom-color: var(--c-border); color: var(--c-fg); }
+  .card-icon {
+    font-family: var(--f-mono); font-size: .75rem; color: var(--c-fg-2);
+    padding-top: 3px; justify-self: center;
+  }
 
-  .card-right { display: flex; flex-direction: column; align-items: flex-end;
-                flex-shrink: 0; gap: 4px; }
-  .card-score { font-size: .9rem; font-weight: 700; color: #27ae60; }
-  .card-score.low { color: #999; }
-  .arxiv-link { font-size: .75rem; color: #0066cc; text-decoration: none; white-space: nowrap; }
-  .arxiv-link:hover { text-decoration: underline; }
-  .card-substatus { font-size: .75rem; color: #aaa; }
-
-  .card-body { padding: 0 16px 12px 46px; }
-  .snippet-box { background: #f8f8f8; border: 1px solid #ebebeb; border-radius: 6px;
-    padding: 10px 14px; font-family: monospace; font-size: .8rem; color: #333;
-    white-space: pre-wrap; line-height: 1.55; }
-  .header-label { font-size: .75rem; font-weight: 700; color: #27ae60; margin-bottom: 5px; }
-
-  /* ── status / summary ── */
-  #status-text { font-size: .85rem; color: #777; min-height: 20px; }
-  .summary-banner { background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 10px;
-    padding: 12px 18px; font-size: .92rem; color: #2e7d32; font-weight: 500; }
+  .card-body { padding: 0 0 16px 38px; }
+  .snippet-box {
+    background: var(--c-bg-alt); border: 1px solid var(--c-border-soft);
+    padding: 12px 16px; font-family: var(--f-mono); font-size: .75rem;
+    font-weight: 300; color: var(--c-fg); white-space: pre-wrap;
+    line-height: 1.6;
+  }
+  .header-label {
+    font-family: var(--f-mono); font-size: .62rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--c-fg-2); margin-bottom: 6px;
+  }
 
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { display: inline-block; animation: spin .9s linear infinite; }
@@ -140,13 +239,13 @@ _HTML = r"""<!DOCTYPE html>
 
 <header>
   <h1>mathgent</h1>
-  <span>live theorem search</span>
+  <span>theorem search</span>
 </header>
 
 <div class="search-bar">
   <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
          value="Banach fixed point theorem" />
-  <label>results <input type="number" id="max-results" value="5" min="1" max="20" /></label>
+  <label>papers <input type="number" id="max-results" value="5" min="1" max="20" /></label>
   <button id="search-btn" onclick="startSearch()">Search</button>
 </div>
 
@@ -155,49 +254,54 @@ _HTML = r"""<!DOCTYPE html>
 
   <!-- Stats bar -->
   <div class="stats-bar" id="stats-bar" style="display:none">
-    <div class="stat-chip"><span>📄</span> Discovered <span class="val" id="s-discovered">0</span></div>
-    <div class="stat-chip"><span>🔍</span> Reviewed <span class="val" id="s-reviewed">0</span></div>
-    <div class="stat-chip accent"><span>✓</span> Matched <span class="val" id="s-matched">0</span></div>
-    <div class="stat-chip"><span>💬</span> Queries <span class="val" id="s-queries">0</span></div>
+    <div class="stat-chip">
+      <span class="slabel">Discovered</span>
+      <span class="val" id="s-discovered">0</span>
+    </div>
+    <div class="stat-chip">
+      <span class="slabel">Reviewed</span>
+      <span class="val" id="s-reviewed">0</span>
+    </div>
+    <div class="stat-chip">
+      <span class="slabel">Matched</span>
+      <span class="val" id="s-matched">0</span>
+    </div>
+    <div class="stat-chip">
+      <span class="slabel">Queries</span>
+      <span class="val" id="s-queries">0</span>
+    </div>
   </div>
 
   <!-- Query panel -->
-  <div class="panel" id="query-panel" style="display:none">
-    <div class="panel-head">⟳ <span id="query-panel-label">Planning queries…</span></div>
-    <div class="panel-body" id="query-badges"></div>
+  <div class="query-panel" id="query-panel" style="display:none">
+    <div class="section-label" id="query-panel-label">Planning queries</div>
+    <div class="query-list" id="query-badges"></div>
   </div>
 
   <!-- Results -->
-  <div id="papers"></div>
+  <div>
+    <div class="section-label" id="papers-label" style="display:none">Results</div>
+    <div id="papers" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <script>
 let es = null;
 
-// State
-const paperData = {};   // arxiv_id → {title, authors, score, matched, state, snippet, header, substatus}
+const paperData = {};
 let discovered = 0, reviewed = 0, matched = 0, queriesCount = 0;
-
-// ── helpers ─────────────────────────────────────────────────────────────────
 
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function scoreColor(score, isMatched) {
-  if (!isMatched) return 'low';
-  return '';
-}
-
 function sortKey(p) {
   if (p.state === 'matched')   return 0 - (p.score || 0);
   if (p.state === 'no-match')  return 10 - (p.score || 0);
   if (p.state === 'working')   return 100;
-  return 200;  // pending
+  return 200;
 }
-
-// ── rendering ───────────────────────────────────────────────────────────────
 
 function renderStats() {
   document.getElementById('s-discovered').textContent = discovered;
@@ -208,21 +312,16 @@ function renderStats() {
 
 function renderPapers() {
   const container = document.getElementById('papers');
-
   const sorted = Object.values(paperData).sort((a, b) => sortKey(a) - sortKey(b));
 
   sorted.forEach(p => {
     let card = document.getElementById('card-' + p.id);
-    const isNew = !card;
-
-    if (isNew) {
-      card = document.createElement('div');
-      card.id = 'card-' + p.id;
-      container.appendChild(card);
-    }
-
-    // Reorder DOM to match sort
-    container.appendChild(card);
+    container.appendChild(card || (() => {
+      const d = document.createElement('div');
+      d.id = 'card-' + p.id;
+      return d;
+    })());
+    card = document.getElementById('card-' + p.id);
 
     const stateClass = p.state || 'pending';
     card.className = 'paper-card ' + stateClass;
@@ -230,28 +329,30 @@ function renderPapers() {
     const icon =
       p.state === 'matched'  ? '✓' :
       p.state === 'no-match' ? '✗' :
-      p.state === 'working'  ? '<span class="spinner">⟳</span>' : '·';
+      p.state === 'working'  ? '<span class="spinner">·</span>' : '·';
 
     const scoreHtml = (p.score != null)
-      ? `<div class="card-score ${scoreColor(p.score, p.state === 'matched')}">${p.score.toFixed(3)}</div>`
+      ? `<div class="card-score${p.state !== 'matched' ? ' low' : ''}">${p.score.toFixed(3)}</div>`
       : '';
 
     const titleHtml = p.title
       ? `<div class="card-title">${esc(p.title)}</div>`
-      : `<div class="card-title card-arxiv-id">${esc(p.id)}</div>`;
+      : `<div class="card-arxiv-id">${esc(p.id)}</div>`;
 
-    const authorsHtml = p.authors && p.authors.length
+    const authorsHtml = (p.authors && p.authors.length)
       ? `<div class="card-authors">${esc(p.authors.join(', '))}</div>`
       : (p.title ? `<div class="card-arxiv-id">${esc(p.id)}</div>` : '');
 
-    const substatusHtml = p.substatus
-      ? `<div class="card-substatus">${esc(p.substatus)}</div>`
-      : '';
+    const subHtml = p.substatus
+      ? `<div class="card-substatus">${esc(p.substatus)}</div>` : '';
 
-    const isOpen = card.dataset.open === '1';
-    const chevronClass = isOpen ? 'card-chevron open' : 'card-chevron';
+    const isOpen   = card.dataset.open === '1';
+    const hasBody  = p.state === 'matched' && p.snippet;
+    const chevHtml = hasBody
+      ? `<span class="card-chevron${isOpen ? ' open' : ''}" id="chev-${p.id}">▶</span>`
+      : `<span></span>`;
 
-    const bodyHtml = (p.state === 'matched' && p.snippet)
+    const bodyHtml = hasBody
       ? `<div class="card-body" ${isOpen ? '' : 'style="display:none"'}>
            <div class="snippet-box">` +
              (p.header ? `<div class="header-label">${esc(p.header)}</div>` : '') +
@@ -259,16 +360,13 @@ function renderPapers() {
          `</div></div>`
       : '';
 
-    const hasBody = p.state === 'matched' && p.snippet;
-
     card.innerHTML = `
       <button class="card-toggle" onclick="toggleCard('${p.id}')">
-        ${hasBody ? `<span class="${chevronClass}" id="chev-${p.id}">▶</span>` : '<span style="width:16px;flex-shrink:0"></span>'}
-        <span class="card-icon">${icon}</span>
+        ${chevHtml}
         <div class="card-main">
           ${titleHtml}
           ${authorsHtml}
-          ${substatusHtml}
+          ${subHtml}
         </div>
         <div class="card-right">
           ${scoreHtml}
@@ -292,15 +390,14 @@ function toggleCard(id) {
   if (chev) chev.className = isOpen ? 'card-chevron' : 'card-chevron open';
 }
 
-// ── event handlers ──────────────────────────────────────────────────────────
-
 function handle(ev) {
   const status = document.getElementById('status-text');
 
   if (ev.type === 'query_start') {
-    status.textContent = `Searching: "${esc(ev.query)}"`;
+    status.textContent = 'Searching…';
     document.getElementById('stats-bar').style.display = 'flex';
     document.getElementById('query-panel').style.display = '';
+    document.getElementById('papers-label').style.display = '';
   }
 
   else if (ev.type === 'queries_planned') {
@@ -309,11 +406,10 @@ function handle(ev) {
     container.innerHTML = '';
     queriesCount = ev.queries.length;
     ev.queries.forEach((q, i) => {
-      const isOrig = i === 0;
       const badge = document.createElement('div');
-      badge.className = 'query-badge ' + (isOrig ? 'original' : 'variant');
+      badge.className = 'query-badge' + (i > 0 ? ' variant' : '');
       badge.title = q;
-      badge.innerHTML = `<span class="qlabel">${isOrig ? 'original' : 'variant ' + i}</span>`
+      badge.innerHTML = `<span class="qlabel">${i === 0 ? 'original' : 'variant ' + i}</span>`
                       + `<span class="qtext">${esc(q)}</span>`;
       container.appendChild(badge);
     });
@@ -324,29 +420,26 @@ function handle(ev) {
     if (ev.arxiv_ids && ev.arxiv_ids.length) {
       ev.arxiv_ids.forEach(id => {
         if (!paperData[id]) {
-          paperData[id] = { id, title: null, authors: null, score: null, matched: false,
+          paperData[id] = { id, title: null, authors: null, score: null,
                             state: 'pending', snippet: null, header: null, substatus: null };
           discovered++;
         }
       });
-      renderStats();
-      renderPapers();
+      renderStats(); renderPapers();
     }
   }
 
   else if (ev.type === 'worker_start') {
     const p = paperData[ev.arxiv_id];
-    if (p) { p.state = 'working'; p.substatus = 'fetching headers…'; renderPapers(); }
+    if (p) { p.state = 'working'; p.substatus = 'fetching…'; renderPapers(); }
   }
 
   else if (ev.type === 'plan_complete') {
     const p = paperData[ev.arxiv_id];
     if (!p) return;
-    if (ev.reason === 'no_headers') {
-      p.substatus = 'no theorem-like headers found';
-    } else {
-      p.substatus = `scoring ${ev.header_count} header${ev.header_count !== 1 ? 's' : ''}…`;
-    }
+    p.substatus = ev.reason === 'no_headers'
+      ? 'no theorem headers found'
+      : `${ev.header_count} header${ev.header_count !== 1 ? 's' : ''} found`;
     renderPapers();
   }
 
@@ -354,81 +447,57 @@ function handle(ev) {
     const p = paperData[ev.arxiv_id];
     if (!p) return;
     reviewed++;
-    p.score     = ev.score;
-    p.snippet   = ev.snippet;
-    p.header    = ev.header;
+    p.score    = ev.score;
+    p.snippet  = ev.snippet;
+    p.header   = ev.header;
     p.substatus = null;
-    if (ev.matched) {
-      p.state   = 'matched';
-      matched++;
-    } else {
-      p.state = 'no-match';
-    }
-    renderStats();
-    renderPapers();
-    status.textContent = `Processing… (${reviewed} reviewed, ${matched} matched so far)`;
-  }
-
-  else if (ev.type === 'metadata_update') {
-    ev.papers.forEach(m => {
-      const p = paperData[m.arxiv_id];
-      if (p) {
-        if (m.title)   p.title   = m.title;
-        if (m.authors) p.authors = m.authors;
-      }
-    });
-    renderPapers();
+    p.state    = ev.matched ? 'matched' : 'no-match';
+    if (ev.matched) matched++;
+    renderStats(); renderPapers();
+    status.textContent = `Reviewing… ${reviewed} done, ${matched} matched`;
   }
 
   else if (ev.type === 'search_done') {
     es.close(); es = null;
     document.getElementById('search-btn').disabled = false;
-    // Apply metadata from final results
     if (ev.papers) {
       ev.papers.forEach(m => {
         const p = paperData[m.arxiv_id];
-        if (p) {
-          if (m.title)   p.title   = m.title;
-          if (m.authors) p.authors = m.authors;
-        }
+        if (p) { if (m.title) p.title = m.title; if (m.authors) p.authors = m.authors; }
       });
       renderPapers();
     }
-    status.textContent = `${ev.matched} match${ev.matched !== 1 ? 'es' : ''} from ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`;
+    status.textContent = `${ev.matched} match${ev.matched !== 1 ? 'es' : ''} · ${ev.total} papers reviewed · ${ev.latency_s.toFixed(1)}s`;
   }
 
   else if (ev.type === 'error') {
-    status.textContent = 'Error: ' + esc(ev.message);
+    status.textContent = 'error — ' + esc(ev.message);
     document.getElementById('search-btn').disabled = false;
     if (es) { es.close(); es = null; }
   }
 }
 
-// ── search control ───────────────────────────────────────────────────────────
-
 function startSearch() {
   if (es) { es.close(); es = null; }
-
-  // Reset state
   Object.keys(paperData).forEach(k => delete paperData[k]);
   discovered = reviewed = matched = queriesCount = 0;
-
   document.getElementById('papers').innerHTML = '';
   document.getElementById('query-badges').innerHTML = '';
-  document.getElementById('query-panel-label').textContent = 'Planning queries…';
-  document.getElementById('status-text').textContent = 'Starting…';
-  document.getElementById('stats-bar').style.display = 'none';
+  document.getElementById('query-panel-label').textContent = 'Planning queries';
+  document.getElementById('status-text').textContent = '';
+  document.getElementById('stats-bar').style.display   = 'none';
   document.getElementById('query-panel').style.display = 'none';
+  document.getElementById('papers-label').style.display = 'none';
   document.getElementById('search-btn').disabled = true;
 
-  const query    = document.getElementById('query').value.trim();
-  const maxR     = document.getElementById('max-results').value;
+  const query = document.getElementById('query').value.trim();
+  const maxR  = document.getElementById('max-results').value;
   if (!query) { document.getElementById('search-btn').disabled = false; return; }
 
   es = new EventSource(`/stream?query=${encodeURIComponent(query)}&max_results=${maxR}`);
   es.onmessage = e => handle(JSON.parse(e.data));
   es.onerror   = () => {
-    document.getElementById('status-text').textContent = 'Connection error.';
+    document.getElementById('status-text').textContent = 'connection error';
     document.getElementById('search-btn').disabled = false;
     if (es) { es.close(); es = null; }
   };
@@ -441,6 +510,8 @@ document.getElementById('query').addEventListener('keydown', e => {
 </body>
 </html>
 """
+
+
 
 
 # ---------------------------------------------------------------------------
