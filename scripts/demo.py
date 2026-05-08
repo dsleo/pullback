@@ -147,7 +147,6 @@ _HTML = r"""<!DOCTYPE html>
   <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
          value="Banach fixed point theorem" />
   <label>results <input type="number" id="max-results" value="5" min="1" max="20" /></label>
-  <label>strictness <input type="number" id="strictness" value="0.2" min="0" max="1" step="0.05" style="width:68px" /></label>
   <button id="search-btn" onclick="startSearch()">Search</button>
 </div>
 
@@ -178,7 +177,6 @@ let es = null;
 // State
 const paperData = {};   // arxiv_id → {title, authors, score, matched, state, snippet, header, substatus}
 let discovered = 0, reviewed = 0, matched = 0, queriesCount = 0;
-let strictnessVal = 0.2;
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 
@@ -303,7 +301,6 @@ function handle(ev) {
     status.textContent = `Searching: "${esc(ev.query)}"`;
     document.getElementById('stats-bar').style.display = 'flex';
     document.getElementById('query-panel').style.display = '';
-    strictnessVal = ev.strictness || 0.2;
   }
 
   else if (ev.type === 'queries_planned') {
@@ -397,11 +394,7 @@ function handle(ev) {
       });
       renderPapers();
     }
-    const banner = document.createElement('div');
-    banner.className = 'summary-banner';
-    banner.textContent = `Done — ${ev.matched} match${ev.matched !== 1 ? 'es' : ''} from ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`;
-    document.getElementById('papers').insertBefore(banner, document.getElementById('papers').firstChild);
-    status.textContent = '';
+    status.textContent = `${ev.matched} match${ev.matched !== 1 ? 'es' : ''} from ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`;
   }
 
   else if (ev.type === 'error') {
@@ -430,10 +423,9 @@ function startSearch() {
 
   const query    = document.getElementById('query').value.trim();
   const maxR     = document.getElementById('max-results').value;
-  const strict   = document.getElementById('strictness').value;
   if (!query) { document.getElementById('search-btn').disabled = false; return; }
 
-  es = new EventSource(`/stream?query=${encodeURIComponent(query)}&max_results=${maxR}&strictness=${strict}`);
+  es = new EventSource(`/stream?query=${encodeURIComponent(query)}&max_results=${maxR}`);
   es.onmessage = e => handle(JSON.parse(e.data));
   es.onerror   = () => {
     document.getElementById('status-text').textContent = 'Connection error.';
@@ -464,7 +456,7 @@ async def index() -> HTMLResponse:
 async def stream(
     query: str = "Banach fixed point theorem",
     max_results: int = 5,
-    strictness: float = 0.2,
+    strictness: float = 0.0,
 ) -> StreamingResponse:
     return StreamingResponse(
         _search_stream(query, max_results, strictness),
