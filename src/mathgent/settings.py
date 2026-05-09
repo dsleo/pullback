@@ -106,6 +106,7 @@ class LibrarianSettings:
     agentic: bool
     max_query_attempts: int
     max_replan_rounds: int
+    max_results: int
     timeout_seconds: float
     query_planner_model_name: str | None
 
@@ -175,6 +176,7 @@ def load_settings() -> AppSettings:
         agentic=agentic,
         max_query_attempts=cfg["retrieval"]["max_query_attempts"],
         max_replan_rounds=cfg["execution"]["max_replan_rounds"],
+        max_results=cfg["retrieval"]["max_results"],
         timeout_seconds=timeout_seconds,
         query_planner_model_name=cfg["models"]["query_planner"],
     )

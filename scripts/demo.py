@@ -22,7 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from mathgent.api.deps import build_orchestrator  # noqa: E402
 
+from mathgent.settings import load_settings as _load_settings
 app = FastAPI(title="mathgent demo")
+_demo_settings = _load_settings()
+_MAX_RESULTS = _demo_settings.librarian.max_results
 
 # ---------------------------------------------------------------------------
 # HTML
@@ -297,7 +300,6 @@ _HTML = r"""<!DOCTYPE html>
 <div class="search-bar">
   <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
          value="Banach fixed point theorem" />
-  <label>results <input type="number" id="max-results" value="5" min="1" max="20" /></label>
   <button id="search-btn" onclick="startSearch()">Search</button>
   <button id="adv-btn" onclick="toggleAdvanced()" title="Advanced mode: show scores, query attribution, click-to-filter">Advanced</button>
 </div>
@@ -596,10 +598,9 @@ function startSearch() {
   document.getElementById('search-btn').disabled = true;
 
   const query = document.getElementById('query').value.trim();
-  const maxR  = document.getElementById('max-results').value;
   if (!query) { document.getElementById('search-btn').disabled = false; return; }
 
-  es = new EventSource(`/stream?query=${encodeURIComponent(query)}&max_results=${maxR}`);
+  es = new EventSource(`/stream?query=${encodeURIComponent(query)}`);
   es.onmessage = e => handle(JSON.parse(e.data));
   es.onerror   = () => {
     document.getElementById('status-text').textContent = 'connection error';
@@ -631,11 +632,10 @@ async def index() -> HTMLResponse:
 @app.get("/stream")
 async def stream(
     query: str = "Banach fixed point theorem",
-    max_results: int = 5,
     strictness: float = 0.0,
 ) -> StreamingResponse:
     return StreamingResponse(
-        _search_stream(query, max_results, strictness),
+        _search_stream(query, _MAX_RESULTS, strictness),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
