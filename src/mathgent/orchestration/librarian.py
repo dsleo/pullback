@@ -171,14 +171,52 @@ class LibrarianOrchestrator:
             seed_query = query
 
             for round_index in range(1, max_rounds + 1):
-                # Round 1 with agentic planning: start raw-query discovery immediately
-                # in parallel with the LLM call so providers are already running while
-                # the query planner thinks. Variant queries fire after planning completes.
-                eager_raw_task: asyncio.Task | None = None
-                if round_index == 1 and self._agentic_query_loop:
-                    eager_raw_task = asyncio.create_task(
-                        self._discover_arxiv_ids(seed_query, candidate_budget, is_raw_query=True)
+                # Semaphore and index counter for forager tasks this round.
+                _sem = asyncio.Semaphore(self._settings.delegate_concurrency)
+                forager_tasks: list[asyncio.Task] = []
+                round_fresh_ids: list[str] = []
+                _fidx: list[int] = [0]
+
+                async def _forge(aid: str) -> IndexedResult:
+                    idx = _fidx[0]; _fidx[0] += 1
+                    async with _sem:
+                        return await self._run_one(idx, aid, forager_query, strictness)
+
+                def _spawn_foragers(ids: list[str], query_label: str) -> int:
+                    """Deduplicate ids against seen_arxiv_ids, spawn forager tasks, return fresh count."""
+                    fresh: list[str] = []
+                    for arxiv_id in ids:
+                        if arxiv_id in seen_arxiv_ids:
+                            continue
+                        seen_arxiv_ids.add(arxiv_id)
+                        fresh.append(arxiv_id)
+                        round_fresh_ids.append(arxiv_id)
+                    log.info(
+                        "search.ids round={} query={} count={} candidate_budget={}",
+                        round_index, query_label, len(fresh), candidate_budget,
                     )
+                    for aid in fresh:
+                        forager_tasks.append(asyncio.create_task(_forge(aid)))
+                    return len(fresh)
+
+                # Round 1 with agentic planning: start raw-query discovery immediately
+                # AND immediately spawn foragers as soon as that discovery returns —
+                # all in parallel with the LLM planning call.
+                eager_task: asyncio.Task | None = None
+                if round_index == 1 and self._agentic_query_loop:
+                    seed_key = self._query_key(seed_query)
+                    if seed_key and seed_key not in seen_query_keys:
+                        seen_query_keys.add(seed_key)
+                        seen_queries.append(seed_query)
+
+                    async def _eager_discover_and_forge(
+                        _sq: str = seed_query,
+                    ) -> list[str]:
+                        ids = await self._discover_arxiv_ids(_sq, candidate_budget, is_raw_query=True)
+                        _spawn_foragers(ids, _sq)
+                        return ids
+
+                    eager_task = asyncio.create_task(_eager_discover_and_forge())
 
                 planned_attempts = await self._query_attempts(seed_query)
                 round_attempts: list[str] = []
@@ -190,60 +228,30 @@ class LibrarianOrchestrator:
                     seen_queries.append(candidate)
                     round_attempts.append(candidate)
 
-                if not round_attempts:
+                if not round_attempts and eager_task is None:
                     log.info("search.no_new_attempts round={} seed_query={}", round_index, seed_query)
-                    if eager_raw_task:
-                        eager_raw_task.cancel()
                     break
 
-                # Launch discovery tasks for all attempts; idx=0 on round 1 reuses
-                # the already-running eager task so it has zero extra latency.
-                _captured_eager = eager_raw_task
+                # Stream variant-query discovery: submit forager tasks as each batch arrives.
+                disc_tasks: list[asyncio.Task] = []
+                if round_attempts:
+                    async def _disc(aq: str) -> tuple[str, list[str]]:
+                        ids = await self._discover_arxiv_ids(aq, candidate_budget, is_raw_query=False)
+                        return aq, ids
 
-                async def _disc(idx: int, aq: str, _eager: asyncio.Task | None = _captured_eager) -> tuple[str, list[str]]:
-                    if idx == 0 and _eager is not None:
-                        ids = await _eager
-                    else:
-                        ids = await self._discover_arxiv_ids(aq, candidate_budget, is_raw_query=(idx == 0 and round_index == 1))
-                    return aq, ids
+                    disc_tasks = [asyncio.create_task(_disc(q)) for q in round_attempts]
+                    pending_disc: set[asyncio.Task] = set(disc_tasks)
+                    while pending_disc:
+                        done_disc, pending_disc = await asyncio.wait(pending_disc, return_when=asyncio.FIRST_COMPLETED)
+                        for dtask in [t for t in disc_tasks if t in done_disc]:
+                            attempt_query, arxiv_ids = dtask.result()
+                            _spawn_foragers(arxiv_ids, attempt_query)
 
-                disc_tasks = [asyncio.create_task(_disc(i, q)) for i, q in enumerate(round_attempts)]
+                # Ensure eager discovery+forging is fully registered before gathering.
+                if eager_task is not None:
+                    await eager_task
 
-                # Shared forager semaphore for the whole round.
-                _sem = asyncio.Semaphore(self._settings.delegate_concurrency)
-                forager_tasks: list[asyncio.Task] = []
-                round_fresh_ids: list[str] = []
-
-                async def _forge(aid: str, local_idx: int) -> IndexedResult:
-                    async with _sem:
-                        return await self._run_one(local_idx, aid, forager_query, strictness)
-
-                # Process discovery results as they arrive and submit forager tasks immediately
-                # — papers from the raw query start foraging while variant queries are still running.
-                # Iterate done_disc in original task order to preserve deterministic paper ordering.
-                pending_disc: set[asyncio.Task] = set(disc_tasks)
-                while pending_disc:
-                    done_disc, pending_disc = await asyncio.wait(pending_disc, return_when=asyncio.FIRST_COMPLETED)
-                    for dtask in [t for t in disc_tasks if t in done_disc]:
-                        attempt_query, arxiv_ids = dtask.result()
-                        fresh_ids: list[str] = []
-                        for arxiv_id in arxiv_ids:
-                            if arxiv_id in seen_arxiv_ids:
-                                continue
-                            seen_arxiv_ids.add(arxiv_id)
-                            fresh_ids.append(arxiv_id)
-                            round_fresh_ids.append(arxiv_id)
-                        log.info(
-                            "search.ids round={} query={} count={} candidate_budget={}",
-                            round_index,
-                            attempt_query,
-                            len(fresh_ids),
-                            candidate_budget,
-                        )
-                        for aid in fresh_ids:
-                            forager_tasks.append(asyncio.create_task(_forge(aid, len(forager_tasks))))
-
-                executed_attempts += len(round_attempts)
+                executed_attempts += len(round_attempts) + (1 if eager_task is not None else 0)
 
                 # Wait for all forager tasks across all discovery batches, then rerank once.
                 indexed_results: list[IndexedResult] = []

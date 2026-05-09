@@ -7,6 +7,7 @@ let activeQueryFilter = null;
 
 const paperData  = {};
 const queryToIds = {};   // query string → Set of arxiv_ids
+const idAliases  = {};   // bare (version-stripped) id → canonical id in paperData
 let discovered = 0, reviewed = 0, matched = 0, queriesCount = 0;
 
 // Strategy labels in planner prompt order (index 0 = original, 1-N = LLM variants)
@@ -203,10 +204,10 @@ function handle(ev) {
                           state: 'pending', snippet: null, header: null,
                           substatus: null, discoveredBy: [ev.query] };
           paperData[id] = entry;
-          // Also index by bare ID (without version suffix) so metadata_update
-          // can match even when the metadata fetcher normalizes the ID.
+          // Register bare-ID alias for metadata_update lookup (metadata fetcher
+          // normalizes IDs by stripping version suffix).
           const bare = id.replace(/v\d+$/, '');
-          if (bare !== id) paperData[bare] = entry;
+          if (bare !== id) idAliases[bare] = id;
           discovered++;
         } else if (!paperData[id].discoveredBy.includes(ev.query)) {
           paperData[id].discoveredBy.push(ev.query);
@@ -218,10 +219,12 @@ function handle(ev) {
 
   else if (ev.type === 'metadata_update') {
     ev.papers.forEach(pm => {
-      // Try exact match first, then version-stripped fallback
+      // Metadata fetcher returns bare IDs (version stripped). Look up via idAliases
+      // first, then try direct key match as fallback.
       const key = pm.arxiv_id;
       const bare = key.replace(/v\d+$/, '');
-      const target = paperData[key] || paperData[bare];
+      const canonId = idAliases[bare] || idAliases[key] || key;
+      const target = paperData[canonId];
       if (target) {
         target.title   = pm.title   || null;
         target.authors = pm.authors || null;
@@ -276,6 +279,7 @@ function startSearch() {
   if (es) { es.close(); es = null; }
   Object.keys(paperData).forEach(k => delete paperData[k]);
   Object.keys(queryToIds).forEach(k => delete queryToIds[k]);
+  Object.keys(idAliases).forEach(k => delete idAliases[k]);
   activeQueryFilter = null;
   window._queryList = [];
   discovered = reviewed = matched = queriesCount = 0;
