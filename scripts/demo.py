@@ -260,14 +260,25 @@ _HTML = r"""<!DOCTYPE html>
 
 
   #adv-btn {
-    font-family: var(--f-mono); font-size: .62rem; font-weight: 400;
-    letter-spacing: .10em; text-transform: uppercase;
-    background: none; color: var(--c-fg-3);
-    border: 1px solid var(--c-border-mid); border-radius: 4px;
-    padding: 9px 14px; cursor: pointer; transition: all .15s;
+    background: none; border: none; cursor: pointer;
+    font-size: .85rem; color: var(--c-fg-3); padding: 0 0 0 6px;
+    vertical-align: middle; line-height: 1; transition: color .15s;
   }
-  #adv-btn:hover { color: var(--c-fg); border-color: var(--c-fg-3); }
-  #adv-btn.active { color: var(--c-gold); border-color: var(--c-gold); }
+  #adv-btn:hover { color: var(--c-fg-2); }
+  #adv-btn.active { color: var(--c-gold); }
+
+  /* pipeline strip */
+  .pipeline-strip { display: flex; flex-direction: column; gap: 10px; }
+  .pipeline-row   { display: flex; align-items: baseline; gap: 16px; }
+  .stage-text {
+    font-family: var(--f-mono); font-size: .68rem; letter-spacing: .06em;
+    color: var(--c-fg-3);
+  }
+  .pipeline-counts {
+    font-family: var(--f-mono); font-size: .62rem; color: var(--c-fg-3);
+  }
+  .pipeline-counts span { margin-right: 10px; }
+  .pipeline-counts .cnt-match { color: var(--c-gold); }
 
   .query-badge { cursor: pointer; transition: opacity .12s; }
   .query-badge.active-filter {
@@ -301,41 +312,24 @@ _HTML = r"""<!DOCTYPE html>
   <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
          value="Banach fixed point theorem" />
   <button id="search-btn" onclick="startSearch()">Search</button>
-  <button id="adv-btn" onclick="toggleAdvanced()" title="Advanced mode: show scores, query attribution, click-to-filter">Advanced</button>
 </div>
 
 <div class="main">
-  <div id="status-text"></div>
-
-  <!-- Stats bar -->
-  <div class="stats-bar" id="stats-bar" style="display:none">
-    <div class="stat-chip">
-      <span class="slabel">Discovered</span>
-      <span class="val" id="s-discovered">0</span>
+  <!-- Pipeline strip: shown immediately on search click -->
+  <div class="pipeline-strip" id="pipeline" style="display:none">
+    <div class="pipeline-row">
+      <span class="stage-text" id="stage-text">Reformulating query…</span>
+      <span class="pipeline-counts" id="pipeline-counts"></span>
     </div>
-    <div class="stat-chip">
-      <span class="slabel">Reviewed</span>
-      <span class="val" id="s-reviewed">0</span>
-    </div>
-    <div class="stat-chip">
-      <span class="slabel">Matched</span>
-      <span class="val" id="s-matched">0</span>
-    </div>
-    <div class="stat-chip">
-      <span class="slabel">Queries</span>
-      <span class="val" id="s-queries">0</span>
-    </div>
-  </div>
-
-  <!-- Query panel -->
-  <div class="query-panel" id="query-panel" style="display:none">
-    <div class="section-label" id="query-panel-label">Planning queries</div>
     <div class="query-list" id="query-badges"></div>
   </div>
 
   <!-- Results -->
-  <div>
-    <div class="section-label" id="papers-label" style="display:none">Results</div>
+  <div id="results-section" style="display:none">
+    <div class="section-label">
+      Results
+      <button id="adv-btn" onclick="toggleAdvanced()" title="Advanced mode: show scores and query attribution">ⓘ</button>
+    </div>
     <div id="papers" style="margin-top:12px"></div>
   </div>
 </div>
@@ -365,10 +359,18 @@ function sortKey(p) {
 }
 
 function renderStats() {
-  document.getElementById('s-discovered').textContent = discovered;
-  document.getElementById('s-reviewed').textContent   = reviewed;
-  document.getElementById('s-matched').textContent    = matched;
-  document.getElementById('s-queries').textContent    = queriesCount;
+  const el = document.getElementById('pipeline-counts');
+  if (!el) return;
+  const parts = [];
+  if (discovered > 0) parts.push(`<span>${discovered} discovered</span>`);
+  if (reviewed   > 0) parts.push(`<span>${reviewed} reviewed</span>`);
+  if (matched    > 0) parts.push(`<span class="cnt-match">${matched} matched</span>`);
+  el.innerHTML = parts.join('');
+}
+
+function updateStage(text) {
+  const el = document.getElementById('stage-text');
+  if (el) el.textContent = text;
 }
 
 function renderPapers() {
@@ -470,7 +472,31 @@ function toggleCard(id) {
 function toggleAdvanced() {
   advancedMode = !advancedMode;
   document.getElementById('adv-btn').classList.toggle('active', advancedMode);
+  // Rebuild badges to show/hide strategy labels
+  const ql = window._queryList || [];
+  const container = document.getElementById('query-badges');
+  container.innerHTML = '';
+  ql.forEach((q, i) => addQueryBadge(q, i));
+  if (activeQueryFilter) {
+    document.querySelectorAll('.query-badge').forEach(b => {
+      b.classList.toggle('active-filter', b.dataset.query === activeQueryFilter);
+    });
+  }
   renderPapers();
+}
+
+function addQueryBadge(q, i) {
+  const lbl = STRATEGY_LABELS[i] || ('variant ' + i);
+  const badge = document.createElement('div');
+  badge.className = 'query-badge' + (i > 0 ? ' variant' : '');
+  badge.dataset.query = q;
+  badge.title = 'Click to filter results\n\n' + q;
+  badge.onclick = () => filterByQuery(q);
+  // Label only visible in advanced mode
+  const lblHtml = advancedMode ? `<span class="qlabel">${esc(lbl)}</span>` : '';
+  badge.innerHTML = lblHtml + `<span class="qtext">${esc(q)}</span>`;
+  document.getElementById('query-badges').appendChild(badge);
+  return badge;
 }
 
 function filterByQuery(q) {
@@ -482,38 +508,27 @@ function filterByQuery(q) {
 }
 
 function handle(ev) {
-  const status = document.getElementById('status-text');
-
   if (ev.type === 'query_start') {
-    status.textContent = 'Searching…';
-    document.getElementById('stats-bar').style.display = 'flex';
-    document.getElementById('query-panel').style.display = '';
-    document.getElementById('papers-label').style.display = '';
+    // pipeline strip already shown by startSearch(); just update stage
+    updateStage('Reformulating query…');
   }
 
   else if (ev.type === 'queries_planned') {
-    document.getElementById('query-panel-label').textContent = 'Query variants';
-    window._queryList = ev.queries;  // keep for attribution lookup
+    window._queryList = ev.queries;
     const container = document.getElementById('query-badges');
+    // Replace the placeholder original badge with full list
     container.innerHTML = '';
     queriesCount = ev.queries.length;
     ev.queries.forEach((q, i) => {
-      const lbl = STRATEGY_LABELS[i] || ('variant ' + i);
-      const badge = document.createElement('div');
-      badge.className = 'query-badge' + (i > 0 ? ' variant' : '');
-      badge.dataset.query = q;
-      badge.title = 'Click to filter results by this query\n\n' + q;
-      badge.onclick = () => filterByQuery(q);
-      badge.innerHTML = `<span class="qlabel">${esc(lbl)}</span>`
-                      + `<span class="qtext">${esc(q)}</span>`;
-      container.appendChild(badge);
+      addQueryBadge(q, i);
     });
+    updateStage('Searching databases…');
     renderStats();
   }
 
   else if (ev.type === 'discovery') {
     if (ev.arxiv_ids && ev.arxiv_ids.length) {
-      // Track query → ids for filtering
+      document.getElementById('results-section').style.display = '';
       if (!queryToIds[ev.query]) queryToIds[ev.query] = new Set();
       ev.arxiv_ids.forEach(id => {
         queryToIds[ev.query].add(id);
@@ -565,17 +580,17 @@ function handle(ev) {
     p.state    = ev.matched ? 'matched' : 'no-match';
     if (ev.matched) matched++;
     renderStats(); renderPapers();
-    status.textContent = `Reviewing… ${reviewed} done, ${matched} matched`;
+    updateStage(`Reviewing papers — ${reviewed} done, ${matched} matched`);
   }
 
   else if (ev.type === 'search_done') {
     es.close(); es = null;
     document.getElementById('search-btn').disabled = false;
-    status.textContent = `${ev.matched} match${ev.matched !== 1 ? 'es' : ''} · ${ev.total} papers reviewed · ${ev.latency_s.toFixed(1)}s`;
+    updateStage(`Done — ${ev.matched} match${ev.matched !== 1 ? 'es' : ''} from ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`);
   }
 
   else if (ev.type === 'error') {
-    status.textContent = 'error — ' + esc(ev.message);
+    updateStage('Error — ' + esc(ev.message));
     document.getElementById('search-btn').disabled = false;
     if (es) { es.close(); es = null; }
   }
@@ -590,20 +605,24 @@ function startSearch() {
   discovered = reviewed = matched = queriesCount = 0;
   document.getElementById('papers').innerHTML = '';
   document.getElementById('query-badges').innerHTML = '';
-  document.getElementById('query-panel-label').textContent = 'Planning queries';
-  document.getElementById('status-text').textContent = '';
-  document.getElementById('stats-bar').style.display   = 'none';
-  document.getElementById('query-panel').style.display = 'none';
-  document.getElementById('papers-label').style.display = 'none';
+  document.getElementById('results-section').style.display = 'none';
   document.getElementById('search-btn').disabled = true;
 
   const query = document.getElementById('query').value.trim();
   if (!query) { document.getElementById('search-btn').disabled = false; return; }
 
+  // Show pipeline strip immediately — don't wait for SSE
+  window._queryList = [query];
+  document.getElementById('pipeline').style.display = '';
+  updateStage('Reformulating query…');
+  document.getElementById('pipeline-counts').innerHTML = '';
+  document.getElementById('query-badges').innerHTML = '';
+  addQueryBadge(query, 0);  // original query visible right away
+
   es = new EventSource(`/stream?query=${encodeURIComponent(query)}`);
   es.onmessage = e => handle(JSON.parse(e.data));
   es.onerror   = () => {
-    document.getElementById('status-text').textContent = 'connection error';
+    updateStage('Connection error — please try again');
     document.getElementById('search-btn').disabled = false;
     if (es) { es.close(); es = null; }
   };
