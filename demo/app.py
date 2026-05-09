@@ -22,7 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from mathgent.api.deps import build_orchestrator  # noqa: E402
 from mathgent.settings import load_settings as _load_settings  # noqa: E402
 
-from .stream import _run_stream  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from demo.stream import _run_stream  # noqa: E402
 
 _settings = _load_settings()
 _MAX_RESULTS = _settings.librarian.max_results
