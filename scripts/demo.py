@@ -453,6 +453,16 @@ function handle(ev) {
     }
   }
 
+  else if (ev.type === 'metadata_update') {
+    ev.papers.forEach(pm => {
+      if (paperData[pm.arxiv_id]) {
+        paperData[pm.arxiv_id].title   = pm.title   || null;
+        paperData[pm.arxiv_id].authors = pm.authors || null;
+      }
+    });
+    renderPapers();
+  }
+
   else if (ev.type === 'worker_start') {
     const p = paperData[ev.arxiv_id];
     if (p) { p.state = 'working'; p.substatus = 'fetching…'; renderPapers(); }
