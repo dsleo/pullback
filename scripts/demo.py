@@ -260,6 +260,7 @@ _HTML = r"""<!DOCTYPE html>
 
 
   #adv-btn {
+    display: none;  /* shown only after search completes */
     background: none; border: none; cursor: pointer;
     font-size: .85rem; color: var(--c-fg-3); padding: 0 0 0 6px;
     vertical-align: middle; line-height: 1; transition: color .15s;
@@ -534,9 +535,14 @@ function handle(ev) {
       ev.arxiv_ids.forEach(id => {
         queryToIds[ev.query].add(id);
         if (!paperData[id]) {
-          paperData[id] = { id, title: null, authors: null, score: null,
-                            state: 'pending', snippet: null, header: null,
-                            substatus: null, discoveredBy: [ev.query] };
+          const entry = { id, title: null, authors: null, score: null,
+                          state: 'pending', snippet: null, header: null,
+                          substatus: null, discoveredBy: [ev.query] };
+          paperData[id] = entry;
+          // Also index by bare ID (without version suffix) so metadata_update
+          // can match even when the metadata fetcher normalizes the ID.
+          const bare = id.replace(/v\d+$/, '');
+          if (bare !== id) paperData[bare] = entry;
           discovered++;
         } else if (!paperData[id].discoveredBy.includes(ev.query)) {
           paperData[id].discoveredBy.push(ev.query);
@@ -548,9 +554,13 @@ function handle(ev) {
 
   else if (ev.type === 'metadata_update') {
     ev.papers.forEach(pm => {
-      if (paperData[pm.arxiv_id]) {
-        paperData[pm.arxiv_id].title   = pm.title   || null;
-        paperData[pm.arxiv_id].authors = pm.authors || null;
+      // Try exact match first, then version-stripped fallback
+      const key = pm.arxiv_id;
+      const bare = key.replace(/v\d+$/, '');
+      const target = paperData[key] || paperData[bare];
+      if (target) {
+        target.title   = pm.title   || null;
+        target.authors = pm.authors || null;
       }
     });
     renderPapers();
@@ -587,6 +597,7 @@ function handle(ev) {
   else if (ev.type === 'search_done') {
     es.close(); es = null;
     document.getElementById('search-btn').disabled = false;
+    document.getElementById('adv-btn').style.display = '';
     updateStage(`Done — ${ev.matched} match${ev.matched !== 1 ? 'es' : ''} from ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`);
   }
 
@@ -607,6 +618,7 @@ function startSearch() {
   document.getElementById('papers').innerHTML = '';
   document.getElementById('query-badges').innerHTML = '';
   document.getElementById('results-section').style.display = 'none';
+  document.getElementById('adv-btn').style.display = 'none';
   document.getElementById('search-btn').disabled = true;
 
   const query = document.getElementById('query').value.trim();
