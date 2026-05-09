@@ -171,6 +171,15 @@ class LibrarianOrchestrator:
             seed_query = query
 
             for round_index in range(1, max_rounds + 1):
+                # Round 1 with agentic planning: start raw-query discovery immediately
+                # in parallel with the LLM call so providers are already running while
+                # the query planner thinks. Variant queries fire after planning completes.
+                eager_raw_task: asyncio.Task | None = None
+                if round_index == 1 and self._agentic_query_loop:
+                    eager_raw_task = asyncio.create_task(
+                        self._discover_arxiv_ids(seed_query, candidate_budget, is_raw_query=True)
+                    )
+
                 planned_attempts = await self._query_attempts(seed_query)
                 round_attempts: list[str] = []
                 for candidate in planned_attempts:
@@ -183,12 +192,20 @@ class LibrarianOrchestrator:
 
                 if not round_attempts:
                     log.info("search.no_new_attempts round={} seed_query={}", round_index, seed_query)
+                    if eager_raw_task:
+                        eager_raw_task.cancel()
                     break
 
-                # Fire all discovery for this round in parallel
-                async def _discover_one(idx: int, attempt_query: str) -> tuple[str, list[str]]:
-                    is_raw = (idx == 0 and round_index == 1)
-                    ids = await self._discover_arxiv_ids(attempt_query, candidate_budget, is_raw_query=is_raw)
+                # Fire all discovery for this round in parallel;
+                # for idx=0 on round 1, reuse the already-running eager task.
+                _captured_eager = eager_raw_task
+
+                async def _discover_one(idx: int, attempt_query: str, _eager: asyncio.Task | None = _captured_eager) -> tuple[str, list[str]]:
+                    if idx == 0 and _eager is not None:
+                        ids = await _eager  # already running — no extra latency
+                    else:
+                        is_raw = (idx == 0 and round_index == 1)
+                        ids = await self._discover_arxiv_ids(attempt_query, candidate_budget, is_raw_query=is_raw)
                     return attempt_query, ids
 
                 discovery_pairs: list[tuple[str, list[str]]] = list(

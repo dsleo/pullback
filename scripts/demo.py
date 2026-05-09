@@ -318,18 +318,16 @@ _HTML = r"""<!DOCTYPE html>
   <!-- Pipeline strip: shown immediately on search click -->
   <div class="pipeline-strip" id="pipeline" style="display:none">
     <div class="pipeline-row">
-      <span class="stage-text" id="stage-text">Reformulating query…</span>
+      <span class="stage-text" id="stage-text"></span>
       <span class="pipeline-counts" id="pipeline-counts"></span>
+      <button id="adv-btn" onclick="toggleAdvanced()" title="Advanced mode: show scores and query attribution">ⓘ</button>
     </div>
     <div class="query-list" id="query-badges"></div>
   </div>
 
   <!-- Results -->
   <div id="results-section" style="display:none">
-    <div class="section-label">
-      Results
-      <button id="adv-btn" onclick="toggleAdvanced()" title="Advanced mode: show scores and query attribution">ⓘ</button>
-    </div>
+    <div class="section-label">Results</div>
     <div id="papers" style="margin-top:12px"></div>
   </div>
 </div>
@@ -510,7 +508,7 @@ function filterByQuery(q) {
 function handle(ev) {
   if (ev.type === 'query_start') {
     // pipeline strip already shown by startSearch(); just update stage
-    updateStage('Reformulating query…');
+    updateStage('Calling providers with your query…');
   }
 
   else if (ev.type === 'queries_planned') {
@@ -522,7 +520,10 @@ function handle(ev) {
     ev.queries.forEach((q, i) => {
       addQueryBadge(q, i);
     });
-    updateStage('Calling providers…');
+    const variantCount = ev.queries.length - 1;
+    if (variantCount > 0) {
+      updateStage(`Also trying ${variantCount} query reformulation${variantCount !== 1 ? 's' : ''}…`);
+    }
     renderStats();
   }
 
@@ -614,7 +615,7 @@ function startSearch() {
   // Show pipeline strip immediately — don't wait for SSE
   window._queryList = [query];
   document.getElementById('pipeline').style.display = '';
-  updateStage('Reformulating query…');
+  updateStage('Calling providers with your query…');
   document.getElementById('pipeline-counts').innerHTML = '';
   document.getElementById('query-badges').innerHTML = '';
   addQueryBadge(query, 0);  // original query visible right away
