@@ -255,6 +255,34 @@ _HTML = r"""<!DOCTYPE html>
     text-transform: uppercase; color: var(--c-gold-mid); margin-bottom: 6px;
   }
 
+
+  #adv-btn {
+    font-family: var(--f-mono); font-size: .62rem; font-weight: 400;
+    letter-spacing: .10em; text-transform: uppercase;
+    background: none; color: var(--c-fg-3);
+    border: 1px solid var(--c-border-mid); border-radius: 4px;
+    padding: 9px 14px; cursor: pointer; transition: all .15s;
+  }
+  #adv-btn:hover { color: var(--c-fg); border-color: var(--c-fg-3); }
+  #adv-btn.active { color: var(--c-gold); border-color: var(--c-gold); }
+
+  .query-badge { cursor: pointer; transition: opacity .12s; }
+  .query-badge.active-filter {
+    border-color: var(--c-gold) !important;
+    background: var(--c-gold-light) !important;
+    box-shadow: 0 0 0 2px rgba(212,168,67,.25);
+  }
+  .query-badge:hover { opacity: .85; }
+
+  .card-attr {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+  }
+  .attr-chip {
+    font-family: var(--f-mono); font-size: .54rem; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--c-fg-3);
+    border: 1px solid var(--c-border); border-radius: 2px;
+    padding: 2px 6px;
+  }
   @keyframes spin { to { transform: rotate(360deg); } }
   .spinner { display: inline-block; animation: spin .9s linear infinite; }
 </style>
@@ -269,8 +297,9 @@ _HTML = r"""<!DOCTYPE html>
 <div class="search-bar">
   <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
          value="Banach fixed point theorem" />
-  <label>papers <input type="number" id="max-results" value="5" min="1" max="20" /></label>
+  <label>results <input type="number" id="max-results" value="5" min="1" max="20" /></label>
   <button id="search-btn" onclick="startSearch()">Search</button>
+  <button id="adv-btn" onclick="toggleAdvanced()" title="Advanced mode: show scores, query attribution, click-to-filter">Advanced</button>
 </div>
 
 <div class="main">
@@ -311,9 +340,15 @@ _HTML = r"""<!DOCTYPE html>
 
 <script>
 let es = null;
+let advancedMode = false;
+let activeQueryFilter = null;
 
-const paperData = {};
+const paperData  = {};
+const queryToIds = {};   // query string → Set of arxiv_ids
 let discovered = 0, reviewed = 0, matched = 0, queriesCount = 0;
+
+// Strategy labels in planner prompt order (index 0 = original, 1-N = LLM variants)
+const STRATEGY_LABELS = ['original', 'noun-phrase', 'synonym', 'abstraction', 'entity', 'keyword', 'subject'];
 
 function esc(s) {
   if (!s) return '';
@@ -336,7 +371,17 @@ function renderStats() {
 
 function renderPapers() {
   const container = document.getElementById('papers');
-  const sorted = Object.values(paperData).sort((a, b) => sortKey(a) - sortKey(b));
+  const filterSet = activeQueryFilter ? (queryToIds[activeQueryFilter] || new Set()) : null;
+
+  const sorted = Object.values(paperData)
+    .filter(p => !filterSet || filterSet.has(p.id))
+    .sort((a, b) => sortKey(a) - sortKey(b));
+
+  // Remove cards no longer in filtered view
+  Array.from(container.children).forEach(el => {
+    const id = el.id.replace('card-', '');
+    if (!sorted.find(p => p.id === id)) el.remove();
+  });
 
   sorted.forEach(p => {
     let card = document.getElementById('card-' + p.id);
@@ -347,15 +392,11 @@ function renderPapers() {
     })());
     card = document.getElementById('card-' + p.id);
 
-    const stateClass = p.state || 'pending';
-    card.className = 'paper-card ' + stateClass;
+    card.className = 'paper-card ' + (p.state || 'pending');
 
-    const icon =
-      p.state === 'matched'  ? '✓' :
-      p.state === 'no-match' ? '✗' :
-      p.state === 'working'  ? '<span class="spinner">·</span>' : '·';
-
-    const scoreHtml = (p.score != null)
+    // Score: always shown in advanced mode; otherwise only for matched papers
+    const showScore = p.score != null && (p.state === 'matched' || advancedMode);
+    const scoreHtml = showScore
       ? `<div class="card-score${p.state !== 'matched' ? ' low' : ''}">${p.score.toFixed(3)}</div>`
       : '';
 
@@ -370,8 +411,17 @@ function renderPapers() {
     const subHtml = p.substatus
       ? `<div class="card-substatus">${esc(p.substatus)}</div>` : '';
 
-    const isOpen   = card.dataset.open === '1';
-    const hasBody  = p.state === 'matched' && p.snippet;
+    // Attribution chips (advanced mode only)
+    const attrHtml = (advancedMode && p.discoveredBy && p.discoveredBy.length)
+      ? `<div class="card-attr">${p.discoveredBy.map(q => {
+          const idx = (window._queryList || []).indexOf(q);
+          const lbl = idx >= 0 ? (STRATEGY_LABELS[idx] || 'variant ' + idx) : 'unknown';
+          return `<span class="attr-chip" title="${esc(q)}">${esc(lbl)}</span>`;
+        }).join('')}</div>`
+      : '';
+
+    const isOpen  = card.dataset.open === '1';
+    const hasBody = p.state === 'matched' && p.snippet;
     const chevHtml = hasBody
       ? `<span class="card-chevron${isOpen ? ' open' : ''}" id="chev-${p.id}">▶</span>`
       : `<span></span>`;
@@ -391,6 +441,7 @@ function renderPapers() {
           ${titleHtml}
           ${authorsHtml}
           ${subHtml}
+          ${attrHtml}
         </div>
         <div class="card-right">
           ${scoreHtml}
@@ -414,6 +465,20 @@ function toggleCard(id) {
   if (chev) chev.className = isOpen ? 'card-chevron' : 'card-chevron open';
 }
 
+function toggleAdvanced() {
+  advancedMode = !advancedMode;
+  document.getElementById('adv-btn').classList.toggle('active', advancedMode);
+  renderPapers();
+}
+
+function filterByQuery(q) {
+  activeQueryFilter = (activeQueryFilter === q) ? null : q;
+  document.querySelectorAll('.query-badge').forEach(b => {
+    b.classList.toggle('active-filter', b.dataset.query === activeQueryFilter);
+  });
+  renderPapers();
+}
+
 function handle(ev) {
   const status = document.getElementById('status-text');
 
@@ -426,14 +491,18 @@ function handle(ev) {
 
   else if (ev.type === 'queries_planned') {
     document.getElementById('query-panel-label').textContent = 'Query variants';
+    window._queryList = ev.queries;  // keep for attribution lookup
     const container = document.getElementById('query-badges');
     container.innerHTML = '';
     queriesCount = ev.queries.length;
     ev.queries.forEach((q, i) => {
+      const lbl = STRATEGY_LABELS[i] || ('variant ' + i);
       const badge = document.createElement('div');
       badge.className = 'query-badge' + (i > 0 ? ' variant' : '');
-      badge.title = q;
-      badge.innerHTML = `<span class="qlabel">${i === 0 ? 'original' : 'variant ' + i}</span>`
+      badge.dataset.query = q;
+      badge.title = 'Click to filter results by this query\n\n' + q;
+      badge.onclick = () => filterByQuery(q);
+      badge.innerHTML = `<span class="qlabel">${esc(lbl)}</span>`
                       + `<span class="qtext">${esc(q)}</span>`;
       container.appendChild(badge);
     });
@@ -442,11 +511,17 @@ function handle(ev) {
 
   else if (ev.type === 'discovery') {
     if (ev.arxiv_ids && ev.arxiv_ids.length) {
+      // Track query → ids for filtering
+      if (!queryToIds[ev.query]) queryToIds[ev.query] = new Set();
       ev.arxiv_ids.forEach(id => {
+        queryToIds[ev.query].add(id);
         if (!paperData[id]) {
           paperData[id] = { id, title: null, authors: null, score: null,
-                            state: 'pending', snippet: null, header: null, substatus: null };
+                            state: 'pending', snippet: null, header: null,
+                            substatus: null, discoveredBy: [ev.query] };
           discovered++;
+        } else if (!paperData[id].discoveredBy.includes(ev.query)) {
+          paperData[id].discoveredBy.push(ev.query);
         }
       });
       renderStats(); renderPapers();
@@ -507,6 +582,9 @@ function handle(ev) {
 function startSearch() {
   if (es) { es.close(); es = null; }
   Object.keys(paperData).forEach(k => delete paperData[k]);
+  Object.keys(queryToIds).forEach(k => delete queryToIds[k]);
+  activeQueryFilter = null;
+  window._queryList = [];
   discovered = reviewed = matched = queriesCount = 0;
   document.getElementById('papers').innerHTML = '';
   document.getElementById('query-badges').innerHTML = '';
