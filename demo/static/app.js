@@ -59,8 +59,9 @@ function renderPapers() {
     if (!card) {
       card = document.createElement('div');
       card.id = 'card-' + p.id;
-      container.appendChild(card);
     }
+    // Always appendChild to enforce sorted order — moves existing cards too.
+    container.appendChild(card);
 
     card.className = 'paper-card ' + (p.state || 'pending');
 
