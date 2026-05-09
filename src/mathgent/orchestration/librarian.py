@@ -196,47 +196,60 @@ class LibrarianOrchestrator:
                         eager_raw_task.cancel()
                     break
 
-                # Fire all discovery for this round in parallel;
-                # for idx=0 on round 1, reuse the already-running eager task.
+                # Launch discovery tasks for all attempts; idx=0 on round 1 reuses
+                # the already-running eager task so it has zero extra latency.
                 _captured_eager = eager_raw_task
 
-                async def _discover_one(idx: int, attempt_query: str, _eager: asyncio.Task | None = _captured_eager) -> tuple[str, list[str]]:
+                async def _disc(idx: int, aq: str, _eager: asyncio.Task | None = _captured_eager) -> tuple[str, list[str]]:
                     if idx == 0 and _eager is not None:
-                        ids = await _eager  # already running — no extra latency
+                        ids = await _eager
                     else:
-                        is_raw = (idx == 0 and round_index == 1)
-                        ids = await self._discover_arxiv_ids(attempt_query, candidate_budget, is_raw_query=is_raw)
-                    return attempt_query, ids
+                        ids = await self._discover_arxiv_ids(aq, candidate_budget, is_raw_query=(idx == 0 and round_index == 1))
+                    return aq, ids
 
-                discovery_pairs: list[tuple[str, list[str]]] = list(
-                    await asyncio.gather(*(_discover_one(i, q) for i, q in enumerate(round_attempts)))
-                )
+                disc_tasks = [asyncio.create_task(_disc(i, q)) for i, q in enumerate(round_attempts)]
+
+                # Shared forager semaphore for the whole round.
+                _sem = asyncio.Semaphore(self._settings.delegate_concurrency)
+                forager_tasks: list[asyncio.Task] = []
+                round_fresh_ids: list[str] = []
+
+                async def _forge(aid: str, local_idx: int) -> IndexedResult:
+                    async with _sem:
+                        return await self._run_one(local_idx, aid, forager_query, strictness)
+
+                # Process discovery results as they arrive and submit forager tasks immediately
+                # — papers from the raw query start foraging while variant queries are still running.
+                # Iterate done_disc in original task order to preserve deterministic paper ordering.
+                pending_disc: set[asyncio.Task] = set(disc_tasks)
+                while pending_disc:
+                    done_disc, pending_disc = await asyncio.wait(pending_disc, return_when=asyncio.FIRST_COMPLETED)
+                    for dtask in [t for t in disc_tasks if t in done_disc]:
+                        attempt_query, arxiv_ids = dtask.result()
+                        fresh_ids: list[str] = []
+                        for arxiv_id in arxiv_ids:
+                            if arxiv_id in seen_arxiv_ids:
+                                continue
+                            seen_arxiv_ids.add(arxiv_id)
+                            fresh_ids.append(arxiv_id)
+                            round_fresh_ids.append(arxiv_id)
+                        log.info(
+                            "search.ids round={} query={} count={} candidate_budget={}",
+                            round_index,
+                            attempt_query,
+                            len(fresh_ids),
+                            candidate_budget,
+                        )
+                        for aid in fresh_ids:
+                            forager_tasks.append(asyncio.create_task(_forge(aid, len(forager_tasks))))
+
                 executed_attempts += len(round_attempts)
 
-                # Deduplicate across attempts, preserving round order
-                round_fresh_ids: list[str] = []
-                for attempt_query, arxiv_ids in discovery_pairs:
-                    fresh_ids: list[str] = []
-                    for arxiv_id in arxiv_ids:
-                        if arxiv_id in seen_arxiv_ids:
-                            continue
-                        seen_arxiv_ids.add(arxiv_id)
-                        fresh_ids.append(arxiv_id)
-                        round_fresh_ids.append(arxiv_id)
-                    log.info(
-                        "search.ids round={} query={} count={} candidate_budget={}",
-                        round_index,
-                        attempt_query,
-                        len(fresh_ids),
-                        candidate_budget,
-                    )
-
-                # Forage all fresh IDs from this round together, then do one global rerank pass
-                indexed_results = await self._run_foragers(
-                    arxiv_ids=round_fresh_ids,
-                    query=forager_query,
-                    strictness=strictness,
-                )
+                # Wait for all forager tasks across all discovery batches, then rerank once.
+                indexed_results: list[IndexedResult] = []
+                if forager_tasks:
+                    indexed_results = list(await asyncio.gather(*forager_tasks))
+                    indexed_results.sort(key=lambda x: x[0])
 
                 all_candidates: list[LemmaMatch] = []
                 for _, res in indexed_results:
