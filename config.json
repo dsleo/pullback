@@ -8,7 +8,7 @@
     ],
     "top_k_headers": 15,
     "max_query_attempts": 4,
-    "max_results": 5
+    "max_results": 20
   },
   "execution": {
     "concurrency": 5,

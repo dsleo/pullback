@@ -522,7 +522,7 @@ function handle(ev) {
     ev.queries.forEach((q, i) => {
       addQueryBadge(q, i);
     });
-    updateStage('Searching databases…');
+    updateStage('Calling providers…');
     renderStats();
   }
 
@@ -685,8 +685,9 @@ async def _search_stream(query: str, max_results: int, strictness: float):
         await push({"type": "query_start", "query": query,
                     "max_results": max_results, "strictness": strictness})
 
-    # Track which IDs have already had metadata fetched to avoid duplicate calls
+    # Track metadata fetches — tasks are awaited before the stream sentinel
     fetched_metadata_ids: set[str] = set()
+    _metadata_tasks: list[asyncio.Task] = []
 
     async def _fetch_and_push_metadata(ids: list[str]) -> None:
         if orch._metadata_fetcher is None:
@@ -710,9 +711,10 @@ async def _search_stream(query: str, max_results: int, strictness: float):
 
     async def on_discovery_done(*, query, arxiv_ids, **_):
         await push({"type": "discovery", "query": query, "arxiv_ids": list(arxiv_ids)})
-        # Kick off metadata fetch in background so titles appear immediately
+        # Kick off metadata fetch; track task so on_search_done can await it
         if arxiv_ids:
-            asyncio.create_task(_fetch_and_push_metadata(list(arxiv_ids)))
+            t = asyncio.create_task(_fetch_and_push_metadata(list(arxiv_ids)))
+            _metadata_tasks.append(t)
 
     async def on_worker_start(*, state, **_):
         await push({"type": "worker_start", "arxiv_id": state.arxiv_id})
@@ -729,6 +731,9 @@ async def _search_stream(query: str, max_results: int, strictness: float):
                         "snippet": None, "header": None})
 
     async def on_search_done(*, results, matched, latency_s, **_):
+        # Flush any in-flight metadata fetches before closing the stream
+        if _metadata_tasks:
+            await asyncio.gather(*_metadata_tasks, return_exceptions=True)
         await push({"type": "search_done", "matched": matched,
                     "total": len(results), "latency_s": latency_s})
         await queue.put(None)
