@@ -46,7 +46,28 @@ Ranked results — each with the matched theorem snippet
 
 ## Quick Start
 
-### Option A — HTTP API (recommended)
+### Option A — Live Demo (browser)
+
+```bash
+# 1. Install
+uv venv && source .venv/bin/activate
+uv pip install -e .
+
+# 2. Configure
+cp .env.example .env.local
+# Edit .env.local — add your keys (see API Keys section below)
+
+# 3. Launch
+set -a && source .env.local && set +a
+python demo/app.py
+# Browser opens automatically at http://localhost:7860
+```
+
+The demo streams the full pipeline in real time: query reformulation → provider discovery → per-paper foraging → ranked results. Each paper card shows the matched theorem snippet, score, and a direct link to the arXiv page. An **ⓘ** icon reveals advanced details (per-query attribution, strategy labels, raw scores).
+
+---
+
+### Option B — HTTP API
 
 ```bash
 # 1. Install
