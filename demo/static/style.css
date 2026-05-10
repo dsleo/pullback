@@ -92,7 +92,6 @@ header span {
 
 /* ── advanced (ⓘ) button ─────────────────────────────────────────── */
 #adv-btn {
-  display: none; /* shown only after search completes */
   background: none; border: none; cursor: pointer;
   font-size: .85rem; color: var(--c-fg-3); padding: 0 0 0 6px;
   vertical-align: middle; line-height: 1; transition: color .15s;
