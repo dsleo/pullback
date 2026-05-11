@@ -118,7 +118,7 @@ function renderPapers() {
            <div class="snippet-box">` +
              (p.header ? `<div class="header-label">${esc(p.header)}</div>` : '') +
              (imgSrc
-               ? `<img class="rendered-snippet" src="${imgSrc}" loading="lazy" alt="theorem snippet"` +
+               ? `<img class="rendered-snippet" src="${imgSrc}" alt="theorem snippet"` +
                  ` onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` +
                  `<pre class="snippet-fallback" style="display:none">${esc(p.snippet)}</pre>`
                : `<pre class="snippet-fallback">${esc(p.snippet)}</pre>`) +
