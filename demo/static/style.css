@@ -192,13 +192,20 @@ header span {
 .snippet-box {
   background: var(--c-bg); border: 1px solid var(--c-border);
   border-radius: 4px;
-  padding: 12px 14px; font-family: var(--f-mono); font-size: .74rem;
-  font-weight: 300; color: var(--c-fg); white-space: pre-wrap;
-  line-height: 1.65;
+  padding: 12px 14px; overflow: hidden;
 }
 .header-label {
   font-family: var(--f-mono); font-size: .6rem; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--c-gold-mid); margin-bottom: 6px;
+  text-transform: uppercase; color: var(--c-gold-mid); margin-bottom: 8px;
+}
+.rendered-snippet {
+  display: block; max-width: 100%; border-radius: 2px;
+  filter: invert(0.88) sepia(0.08);
+}
+.snippet-fallback {
+  font-family: var(--f-mono); font-size: .74rem; font-weight: 300;
+  color: var(--c-fg); white-space: pre-wrap; line-height: 1.65;
+  margin: 0; padding: 0;
 }
 
 /* ── attribution chips ───────────────────────────────────────────── */

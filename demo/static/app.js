@@ -18,6 +18,18 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function extractSearchText(latex) {
+  if (!latex) return '';
+  let t = latex
+    .replace(/\\(?:begin|end)\{[^}]+\}(?:\[[^\]]*\])?/g, ' ')
+    .replace(/\\[a-zA-Z]+\{([^{}]*)\}/g, ' $1 ')
+    .replace(/\\[a-zA-Z@]+\*?/g, ' ')
+    .replace(/\$+|\\\[|\\\]|\\\(|\\\)/g, ' ')
+    .replace(/[{}()\[\]_^~&%]/g, ' ');
+  const words = t.split(/\s+/).filter(w => w.length > 3 && /^[a-zA-Z]+$/.test(w));
+  return words.slice(0, 6).join(' ');
+}
+
 function sortKey(p) {
   if (p.state === 'matched')  return 0 - (p.score || 0);
   if (p.state === 'no-match') return 10 - (p.score || 0);
@@ -97,11 +109,19 @@ function renderPapers() {
       ? `<span class="card-chevron${isOpen ? ' open' : ''}" id="chev-${p.id}">▶</span>`
       : `<span></span>`;
 
+    const searchText = hasBody ? extractSearchText(p.snippet) : '';
+    const imgSrc = searchText
+      ? `/pdf-snippet/${encodeURIComponent(p.id)}?q=${encodeURIComponent(searchText)}`
+      : '';
     const bodyHtml = hasBody
       ? `<div class="card-body" ${isOpen ? '' : 'style="display:none"'}>
            <div class="snippet-box">` +
              (p.header ? `<div class="header-label">${esc(p.header)}</div>` : '') +
-             esc(p.snippet) +
+             (imgSrc
+               ? `<img class="rendered-snippet" src="${imgSrc}" loading="lazy" alt="theorem snippet"` +
+                 ` onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` +
+                 `<pre class="snippet-fallback" style="display:none">${esc(p.snippet)}</pre>`
+               : `<pre class="snippet-fallback">${esc(p.snippet)}</pre>`) +
          `</div></div>`
       : '';
 
