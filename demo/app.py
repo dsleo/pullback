@@ -113,15 +113,24 @@ async def pdf_snippet(arxiv_id: str, q: str = "") -> Response:
         print(f"pdf_snippet: open failed for {arxiv_id}: {exc}")
         return Response(status_code=422)
 
-    for page in doc:
-        rects = page.search_for(q, quads=False)
-        if rects:
-            r = rects[0]
-            page_w = page.rect.width
-            clip = _fitz.Rect(r.x0 - 40, r.y0 - 80, r.x0 + page_w, r.y1 + 220)
-            clip = clip & page.rect
-            pix = page.get_pixmap(clip=clip, dpi=150, colorspace=_fitz.csGRAY)
-            return Response(content=pix.tobytes("png"), media_type="image/png")
+    # Try progressively shorter phrases — long phrases may straddle line breaks
+    words = q.split()
+    candidates = [q]
+    if len(words) > 4:
+        candidates.append(' '.join(words[:4]))
+    if len(words) > 2:
+        candidates.append(' '.join(words[:2]))
+
+    for phrase in candidates:
+        for page in doc:
+            rects = page.search_for(phrase, quads=False)
+            if rects:
+                r = rects[0]
+                page_w = page.rect.width
+                clip = _fitz.Rect(r.x0 - 40, r.y0 - 80, r.x0 + page_w, r.y1 + 220)
+                clip = clip & page.rect
+                pix = page.get_pixmap(clip=clip, dpi=150, colorspace=_fitz.csGRAY)
+                return Response(content=pix.tobytes("png"), media_type="image/png")
 
     return Response(status_code=404)
 
