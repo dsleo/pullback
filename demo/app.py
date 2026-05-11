@@ -84,25 +84,33 @@ async def _fetch_pdf(arxiv_id: str) -> Path:
     return pdf_path
 
 
+try:
+    import fitz as _fitz  # PyMuPDF — loaded once at startup for fast response
+    _FITZ_OK = True
+except ImportError:
+    _fitz = None  # type: ignore[assignment]
+    _FITZ_OK = False
+    print("WARNING: pymupdf not installed — PDF snippet rendering disabled. Run: uv pip install pymupdf")
+
+
 @app.get("/pdf-snippet/{arxiv_id:path}")
 async def pdf_snippet(arxiv_id: str, q: str = "") -> Response:
     """Return a PNG crop of the PDF region matching q (plain-text search key)."""
-    try:
-        import fitz  # PyMuPDF
-    except ImportError:
+    if not _FITZ_OK:
         return Response(status_code=503, content=b"pymupdf not installed")
-
     if not q:
         return Response(status_code=400)
 
     try:
         pdf_path = await _fetch_pdf(arxiv_id)
-    except Exception:
+    except Exception as exc:
+        print(f"pdf_snippet: fetch failed for {arxiv_id}: {exc}")
         return Response(status_code=503)
 
     try:
-        doc = fitz.open(str(pdf_path))
-    except Exception:
+        doc = _fitz.open(str(pdf_path))
+    except Exception as exc:
+        print(f"pdf_snippet: open failed for {arxiv_id}: {exc}")
         return Response(status_code=422)
 
     for page in doc:
@@ -110,10 +118,9 @@ async def pdf_snippet(arxiv_id: str, q: str = "") -> Response:
         if rects:
             r = rects[0]
             page_w = page.rect.width
-            # Crop: 80pt above match, 220pt below, full width from match left
-            clip = fitz.Rect(r.x0 - 40, r.y0 - 80, r.x0 + page_w, r.y1 + 220)
+            clip = _fitz.Rect(r.x0 - 40, r.y0 - 80, r.x0 + page_w, r.y1 + 220)
             clip = clip & page.rect
-            pix = page.get_pixmap(clip=clip, dpi=150, colorspace=fitz.csGRAY)
+            pix = page.get_pixmap(clip=clip, dpi=150, colorspace=_fitz.csGRAY)
             return Response(content=pix.tobytes("png"), media_type="image/png")
 
     return Response(status_code=404)
