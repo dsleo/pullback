@@ -113,13 +113,15 @@ async def pdf_snippet(arxiv_id: str, q: str = "") -> Response:
         print(f"pdf_snippet: open failed for {arxiv_id}: {exc}")
         return Response(status_code=422)
 
-    # Try progressively shorter phrases — long phrases may straddle line breaks
+    # Try all sliding windows of 3 then 2 consecutive words.
+    # Prefix-only search fails when the first words don't appear together in the PDF
+    # (e.g. "Banach theorem" vs "Banach's theorem"), but a later window like
+    # "complete metric space" will reliably match.
     words = q.split()
-    candidates = [q]
-    if len(words) > 4:
-        candidates.append(' '.join(words[:4]))
-    if len(words) > 2:
-        candidates.append(' '.join(words[:2]))
+    candidates: list[str] = []
+    for n in (3, 2):
+        for i in range(len(words) - n + 1):
+            candidates.append(' '.join(words[i:i + n]))
 
     for phrase in candidates:
         for page in doc:
