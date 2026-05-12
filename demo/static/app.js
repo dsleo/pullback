@@ -197,7 +197,7 @@ function filterByQuery(q) {
 function handle(ev) {
   if (ev.type === 'query_start') {
     // pipeline strip already shown by startSearch(); just update stage
-    updateStage('Calling providers with your query…');
+    updateStage('Searching math databases (OpenAlex, arXiv, zbMATH)…');
   }
 
   else if (ev.type === 'queries_planned') {
@@ -209,7 +209,7 @@ function handle(ev) {
     ev.queries.forEach((q, i) => addQueryBadge(q, i));
     const variantCount = ev.queries.length - 1;
     if (variantCount > 0) {
-      updateStage(`Also trying ${variantCount} query reformulation${variantCount !== 1 ? 's' : ''}…`);
+      updateStage(`Expanding search with ${variantCount} rephrased variant${variantCount !== 1 ? 's' : ''} in parallel…`);
     }
     renderStats();
   }
@@ -279,14 +279,14 @@ function handle(ev) {
     p.state    = ev.matched ? 'matched' : 'no-match';
     if (ev.matched) matched++;
     renderStats(); renderPapers();
-    updateStage(`Reviewing papers — ${reviewed} done, ${matched} matched`);
+    updateStage(`Extracting theorems — ${reviewed} papers scanned, ${matched} match${matched !== 1 ? 'es' : ''}`);
   }
 
   else if (ev.type === 'search_done') {
     es.close(); es = null;
     document.getElementById('search-btn').disabled = false;
     document.getElementById('adv-btn').style.display = '';
-    updateStage(`Done — ${ev.matched} match${ev.matched !== 1 ? 'es' : ''} from ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`);
+    updateStage(`Found ${ev.matched} theorem match${ev.matched !== 1 ? 'es' : ''} across ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`);
   }
 
   else if (ev.type === 'error') {
@@ -316,7 +316,7 @@ function startSearch() {
   // Show pipeline strip immediately — don't wait for SSE
   window._queryList = [query];
   document.getElementById('pipeline').style.display = '';
-  updateStage('Calling providers with your query…');
+  updateStage('Searching math databases (OpenAlex, arXiv, zbMATH)…');
   document.getElementById('pipeline-counts').innerHTML = '';
   document.getElementById('query-badges').innerHTML = '';
   addQueryBadge(query, 0);  // original query visible right away

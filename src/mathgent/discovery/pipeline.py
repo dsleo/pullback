@@ -8,6 +8,7 @@ from typing import Sequence
 from ..observability import get_logger
 from .base import DiscoveryAccessError, PaperDiscoveryClient
 from .arxiv.ids import normalize_arxiv_id
+from .arxiv.metadata import PaperMetadata
 
 log = get_logger("discovery.pipeline")
 
@@ -32,6 +33,7 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
         # timeout tracking: cumulative count and consecutive streak per provider
         self._timeout_counts: dict[str, int] = {name: 0 for name, _ in self._providers}
         self._consecutive_timeouts: dict[str, int] = {name: 0 for name, _ in self._providers}
+        self._last_metadata: dict[str, PaperMetadata] = {}
 
     @property
     def timeout_counts(self) -> dict[str, int]:
@@ -108,6 +110,12 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
 
         seen: set[str] = set()
         merged: list[str] = []
+        merged_metadata: dict[str, PaperMetadata] = {}
+
+        # Build map from task → provider instance for metadata collection
+        task_to_provider_instance: dict[asyncio.Task, PaperDiscoveryClient] = {
+            task: provider for task, (_, provider) in zip(tasks, active_providers)
+        }
 
         # Process results in provider order
         for task, ids in zip(tasks, results):
@@ -122,6 +130,12 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
                 log.info("provider.empty provider={} query={}", name, query)
                 continue
 
+            # Collect any metadata the provider cached alongside its IDs
+            provider_instance = task_to_provider_instance[task]
+            provider_meta: dict[str, PaperMetadata] = getattr(provider_instance, "_last_metadata", {})
+            for k, v in provider_meta.items():
+                merged_metadata.setdefault(k, v)
+
             # Merge results with dedup
             accepted = 0
             for arxiv_id in ids:
@@ -133,6 +147,8 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
 
             if accepted:
                 log.info("provider.success provider={} accepted={} merged={}", name, accepted, merged)
+
+        self._last_metadata = merged_metadata
 
         if merged:
             return merged

@@ -368,12 +368,17 @@ class LibrarianOrchestrator:
         except DiscoveryAccessError as exc:
             log.warning("discovery.failed query={} error={} returning_empty_ids", query, exc)
             ids = []
+        # Synchronously read any metadata the discovery client cached alongside IDs.
+        # Safe in asyncio: no await between discover_arxiv_ids() returning and this read,
+        # so no other concurrent task can overwrite _last_metadata before we capture it.
+        discovery_metadata = dict(getattr(self.discovery_client, "_last_metadata", {}))
         provider_timeouts = getattr(self.discovery_client, "timeout_counts", {})
         await self._hooks.emit(
             "discovery_done",
             query=query,
             max_results=max_results,
             arxiv_ids=ids,
+            metadata=discovery_metadata,
             provider_timeouts=provider_timeouts,
         )
         return ids

@@ -70,10 +70,22 @@ async def _run_stream(
         except Exception:
             pass  # metadata is best-effort
 
-    async def on_discovery_done(*, query, arxiv_ids, **_):
+    async def on_discovery_done(*, query, arxiv_ids, metadata=None, **_):
         await push({"type": "discovery", "query": query, "arxiv_ids": list(arxiv_ids)})
-        if arxiv_ids:
-            t = asyncio.create_task(_fetch_and_push_metadata(list(arxiv_ids)))
+        # Use metadata the provider already fetched (e.g. OpenAlex returns titles inline).
+        if metadata:
+            papers = [
+                {"arxiv_id": aid, "title": m.title, "authors": list(m.authors or [])}
+                for aid, m in metadata.items()
+                if m.title
+            ]
+            if papers:
+                await push({"type": "metadata_update", "papers": papers})
+            fetched_metadata_ids.update(metadata.keys())
+        # Fall back to arXiv API for any IDs the providers didn't supply metadata for.
+        remaining = [aid for aid in arxiv_ids if aid not in fetched_metadata_ids]
+        if remaining:
+            t = asyncio.create_task(_fetch_and_push_metadata(remaining))
             _metadata_tasks.append(t)
 
     async def on_worker_start(*, state, **_):

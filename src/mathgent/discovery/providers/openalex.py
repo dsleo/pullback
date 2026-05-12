@@ -8,7 +8,8 @@ import httpx
 
 from ...observability import get_logger, trace_span
 from ..base import DiscoveryAccessError, PaperDiscoveryClient
-from ..arxiv.ids import dedupe_preserve, extract_arxiv_id_from_text
+from ..arxiv.ids import dedupe_preserve, extract_arxiv_id_from_text, normalize_arxiv_id
+from ..arxiv.metadata import PaperMetadata
 
 log = get_logger("discovery.openalex")
 OPENALEX_WORKS_URL = "https://api.openalex.org/works"
@@ -30,6 +31,7 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         self._api_key = api_key
         self._timeout_seconds = timeout_seconds
         self._mailto = mailto
+        self._last_metadata: dict[str, PaperMetadata] = {}
 
     def _backoff_seconds(self, attempt: int) -> float:
         return min(self._BACKOFF_BASE_SECONDS * (2**attempt), 30.0)
@@ -52,7 +54,7 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         per_page = min(max(target * 2, 8), 25)
         params: dict[str, str | int] = {
             "per-page": per_page,
-            "select": "id,title,ids,primary_location,best_oa_location,locations",
+            "select": "id,title,authorships,ids,primary_location,best_oa_location,locations",
             "search.semantic": query,
         }
         if self._api_key:
@@ -121,7 +123,7 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         per_page = min(max(target * 2, 8), 25)
         params: dict[str, str | int] = {
             "per-page": per_page,
-            "select": "id,title,ids,primary_location,best_oa_location,locations",
+            "select": "id,title,authorships,ids,primary_location,best_oa_location,locations",
             "search": query,
         }
         if self._api_key:
@@ -200,47 +202,73 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         return value if isinstance(value, Mapping) else None
 
     @classmethod
-    def extract_arxiv_ids_from_openalex(cls, payload: Mapping[str, object], *, max_results: int) -> list[str]:
+    def _metadata_from_item(cls, item: Mapping[str, object]) -> PaperMetadata | None:
+        title = item.get("title")
+        if not isinstance(title, str) or not title.strip():
+            return None
+        authors: list[str] = []
+        for authorship in (item.get("authorships") or []):
+            if isinstance(authorship, Mapping):
+                author = cls._as_mapping(authorship.get("author"))
+                if author:
+                    name = author.get("display_name")
+                    if isinstance(name, str) and name.strip():
+                        authors.append(name.strip())
+        return PaperMetadata(title=title.strip(), authors=authors)
+
+    @classmethod
+    def extract_arxiv_ids_from_openalex(
+        cls,
+        payload: Mapping[str, object],
+        *,
+        max_results: int,
+        _metadata_out: dict[str, PaperMetadata] | None = None,
+    ) -> list[str]:
         results = payload.get("results")
         if not isinstance(results, list):
             return []
 
         ids: list[str] = []
         for item in results:
-            found_for_item = False
             if not isinstance(item, Mapping):
                 continue
+
+            arxiv_id: str | None = None
             ids_mapping = cls._as_mapping(item.get("ids"))
             if ids_mapping and isinstance(ids_mapping.get("arxiv"), str):
                 arxiv_id = extract_arxiv_id_from_text(ids_mapping.get("arxiv"))
-                if arxiv_id:
-                    ids.append(arxiv_id)
-                    found_for_item = True
-                    continue
 
-            for location_key in ("primary_location", "best_oa_location"):
-                location = cls._as_mapping(item.get(location_key))
-                if location:
-                    candidate = location.get("landing_page_url") or location.get("pdf_url")
-                    if isinstance(candidate, str):
-                        arxiv_id = extract_arxiv_id_from_text(candidate)
+            if arxiv_id is None:
+                for location_key in ("primary_location", "best_oa_location"):
+                    location = cls._as_mapping(item.get(location_key))
+                    if location:
+                        candidate = location.get("landing_page_url") or location.get("pdf_url")
+                        if isinstance(candidate, str):
+                            arxiv_id = extract_arxiv_id_from_text(candidate)
+                            if arxiv_id:
+                                break
+
+            if arxiv_id is None:
+                locations = item.get("locations")
+                if isinstance(locations, list):
+                    for location_item in locations:
+                        location = cls._as_mapping(location_item)
+                        if location:
+                            for key in ("landing_page_url", "pdf_url"):
+                                candidate = location.get(key)
+                                if isinstance(candidate, str):
+                                    arxiv_id = extract_arxiv_id_from_text(candidate)
+                                    if arxiv_id:
+                                        break
                         if arxiv_id:
-                            ids.append(arxiv_id)
-                            found_for_item = True
                             break
 
-            locations = item.get("locations")
-            if not found_for_item and isinstance(locations, list):
-                for location_item in locations:
-                    location = cls._as_mapping(location_item)
-                    if location:
-                        for key in ("landing_page_url", "pdf_url"):
-                            candidate = location.get(key)
-                            if isinstance(candidate, str):
-                                arxiv_id = extract_arxiv_id_from_text(candidate)
-                                if arxiv_id:
-                                    ids.append(arxiv_id)
-                                    break
+            if arxiv_id:
+                ids.append(arxiv_id)
+                if _metadata_out is not None:
+                    meta = cls._metadata_from_item(item)
+                    if meta:
+                        _metadata_out[normalize_arxiv_id(arxiv_id)] = meta
 
         return dedupe_preserve(ids, max_results=max_results)
 
@@ -257,6 +285,8 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
                         raise
                     log.warning("semantic_failed_fallback_keyword error={}", exc)
                     payload = await self._query_keyword(client, query=query, max_results=max_results)
-            ids = self.extract_arxiv_ids_from_openalex(payload, max_results=max_results)
-            log.info("done count={} ids={}", len(ids), ids)
+            metadata: dict[str, PaperMetadata] = {}
+            ids = self.extract_arxiv_ids_from_openalex(payload, max_results=max_results, _metadata_out=metadata)
+            self._last_metadata = metadata
+            log.info("done count={} ids={} with_metadata={}", len(ids), ids, len(metadata))
             return ids
