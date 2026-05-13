@@ -118,12 +118,16 @@ header span {
   padding: 5px 11px; background: var(--c-bg-alt);
   cursor: pointer; transition: opacity .12s, border-color .12s, background .12s;
 }
+.query-badge.variant {
+  opacity: 0.7;
+}
 .query-badge.active-filter {
   border-color: var(--c-gold);
   background: var(--c-gold-light);
   box-shadow: 0 0 0 2px rgba(212,168,67,.25);
+  opacity: 1;
 }
-.query-badge:hover { opacity: .85; }
+.query-badge:hover { opacity: 1; }
 .qlabel {
   font-family: var(--f-mono); font-size: .56rem; letter-spacing: .14em;
   text-transform: uppercase; color: var(--c-gold);
