@@ -94,7 +94,7 @@ function renderPapers() {
 
     const authorsHtml = (p.authors && p.authors.length)
       ? `<div class="card-authors">${esc(p.authors.join(', '))}</div>`
-      : (p.title ? `<div class="card-arxiv-id">${esc(p.id)}</div>` : '');
+      : '';
 
     const metaParts = [];
     if (p.year) metaParts.push(esc(String(p.year)));

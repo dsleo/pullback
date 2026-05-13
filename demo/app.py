@@ -11,6 +11,7 @@ import re
 import sys
 import threading
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -18,6 +19,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from loguru import logger
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
@@ -31,6 +33,11 @@ _settings = _load_settings()
 _MAX_RESULTS = _settings.librarian.max_results
 
 _STATIC_DIR = Path(__file__).parent / "static"
+_DEMO_LOGS_DIR = Path(__file__).parent / "logs"
+
+# Set up dedicated demo logging to capture query and config for each run
+_DEMO_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+_demo_logger = logger.bind(component="demo")
 
 app = FastAPI(title="mathgent demo")
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
@@ -47,6 +54,25 @@ async def stream(
     query: str = "Banach fixed point theorem",
     strictness: float = 0.0,
 ) -> StreamingResponse:
+    # Set up per-run logging with timestamp
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_log_file = _DEMO_LOGS_DIR / f"run_{run_timestamp}.log"
+
+    # Add a handler for this specific run (ERROR, WARNING, INFO, DEBUG and above)
+    logger.add(
+        str(run_log_file),
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level:<8} | {message}",
+        backtrace=False,
+        diagnose=False,
+        enqueue=False,
+    )
+
+    # Log the query and configuration at the start of this run
+    _demo_logger.info(f"query={query}")
+    _demo_logger.info(f"strictness={strictness}")
+    _demo_logger.info(f"max_results={_MAX_RESULTS}")
+
     return StreamingResponse(
         _run_stream(query, _MAX_RESULTS, strictness, build_orchestrator),
         media_type="text/event-stream",

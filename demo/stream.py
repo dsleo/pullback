@@ -93,7 +93,11 @@ async def _run_stream(
             ]
             if papers:
                 await push({"type": "metadata_update", "papers": papers})
-            fetched_metadata_ids.update(metadata.keys())
+            # Only mark as fully fetched if we have authors too; papers with title but
+            # no authors still go to the arXiv fallback to get complete author data.
+            fetched_metadata_ids.update(
+                aid for aid, m in metadata.items() if m.title and m.authors
+            )
         # Fall back to arXiv API for any IDs the providers didn't supply metadata for.
         remaining = [aid for aid in arxiv_ids if aid not in fetched_metadata_ids]
         if remaining:

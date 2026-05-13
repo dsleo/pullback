@@ -51,7 +51,12 @@
       "Bash(ls logs/benchmark_new35_v3*.jsonl)",
       "Bash(ls -t /Users/leodreyfusschmidt/Desktop/Repos/mathgent/logs/benchmark_new35_v7b_*.jsonl)",
       "Bash(gh repo:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(sed -n '22,45p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/src/mathgent/discovery/pipeline.py)",
+      "Bash(sed -n '85,145p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/src/mathgent/discovery/pipeline.py)",
+      "mcp__plugin_claude-mem_mcp-search__get_observations",
+      "Bash(sed -n '82,86p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/static/app.js)",
+      "Bash(sed -n '88,104p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/stream.py)"
     ]
   }
 }
