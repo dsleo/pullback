@@ -214,7 +214,7 @@ function toggleSortMode() {
   sortMode = sortMode === 'score' ? 'year' : 'score';
   const btn = document.getElementById('sort-btn');
   if (btn) {
-    btn.textContent = sortMode === 'year' ? '⇅ Newest' : '⇅ Score';
+    btn.title = sortMode === 'year' ? 'Sort by score' : 'Sort by newest';
     btn.classList.toggle('active', sortMode === 'year');
   }
   renderPapers();
@@ -333,7 +333,7 @@ function startSearch() {
   activeQueryFilter = null;
   sortMode = 'score';
   const sortBtn = document.getElementById('sort-btn');
-  if (sortBtn) { sortBtn.textContent = '⇅ Score'; sortBtn.classList.remove('active'); }
+  if (sortBtn) { sortBtn.title = 'Sort by newest'; sortBtn.classList.remove('active'); }
   window._queryList = [];
   discovered = reviewed = matched = queriesCount = 0;
   document.getElementById('papers').innerHTML = '';
