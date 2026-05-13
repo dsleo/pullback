@@ -56,7 +56,6 @@ async def _run_stream(
         new_ids = [aid for aid in ids if aid not in fetched_metadata_ids]
         if not new_ids:
             return
-        fetched_metadata_ids.update(new_ids)
         try:
             meta = await orch._metadata_fetcher(new_ids)
             if meta:
@@ -72,6 +71,8 @@ async def _run_stream(
                     if m.title
                 ]
                 if papers:
+                    # Only mark as fetched if we successfully got metadata for them
+                    fetched_metadata_ids.update(p["arxiv_id"] for p in papers)
                     await push({"type": "metadata_update", "papers": papers})
         except Exception:
             pass  # metadata is best-effort
