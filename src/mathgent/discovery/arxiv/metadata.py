@@ -18,6 +18,8 @@ log = get_logger("discovery.arxiv_metadata")
 class PaperMetadata:
     title: str | None = None
     authors: list[str] = field(default_factory=list)
+    year: int | None = None
+    cited_by_count: int | None = None
 
 
 PaperMetadataFetcher = Callable[[list[str]], Awaitable[dict[str, PaperMetadata]]]
@@ -75,9 +77,12 @@ def fetch_arxiv_metadata_sync(
             if not parsed:
                 continue
             arxiv_id = normalize_arxiv_id(parsed)
+            published = getattr(result, "published", None)
+            year = published.year if published is not None else None
             out[arxiv_id] = PaperMetadata(
                 title=_clean_text(getattr(result, "title", None)),
                 authors=_authors_from_result(result),
+                year=year,
             )
     return out
 

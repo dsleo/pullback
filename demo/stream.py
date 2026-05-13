@@ -61,7 +61,13 @@ async def _run_stream(
             meta = await orch._metadata_fetcher(new_ids)
             if meta:
                 papers = [
-                    {"arxiv_id": aid, "title": m.title, "authors": list(m.authors or [])}
+                    {
+                        "arxiv_id": aid,
+                        "title": m.title,
+                        "authors": list(m.authors or []),
+                        "year": m.year,
+                        "cited_by_count": m.cited_by_count,
+                    }
                     for aid, m in meta.items()
                     if m.title
                 ]
@@ -75,7 +81,13 @@ async def _run_stream(
         # Use metadata the provider already fetched (e.g. OpenAlex returns titles inline).
         if metadata:
             papers = [
-                {"arxiv_id": aid, "title": m.title, "authors": list(m.authors or [])}
+                {
+                    "arxiv_id": aid,
+                    "title": m.title,
+                    "authors": list(m.authors or []),
+                    "year": m.year,
+                    "cited_by_count": m.cited_by_count,
+                }
                 for aid, m in metadata.items()
                 if m.title
             ]
@@ -96,11 +108,12 @@ async def _run_stream(
         if m is not None and m.score >= strictness:
             await push({"type": "execute_complete", "arxiv_id": state.arxiv_id,
                         "matched": True, "score": m.score,
-                        "snippet": m.snippet, "header": m.header_line})
+                        "snippet": m.snippet, "header": m.header_line,
+                        "label": m.label})
         else:
             await push({"type": "execute_complete", "arxiv_id": state.arxiv_id,
                         "matched": False, "score": m.score if m else 0.0,
-                        "snippet": None, "header": None})
+                        "snippet": None, "header": None, "label": None})
 
     async def on_search_done(*, results, matched, latency_s, **_):
         if _metadata_tasks:

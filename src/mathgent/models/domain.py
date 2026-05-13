@@ -16,6 +16,7 @@ class LemmaMatch(BaseModel):
     header_line: str
     snippet: str
     score: float = Field(ge=0.0, le=1.0)
+    label: str | None = None
 
 
 class SearchResultEntry(BaseModel):

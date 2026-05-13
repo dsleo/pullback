@@ -54,7 +54,7 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         per_page = min(max(target * 2, 8), 25)
         params: dict[str, str | int] = {
             "per-page": per_page,
-            "select": "id,title,authorships,ids,primary_location,best_oa_location,locations",
+            "select": "id,title,authorships,publication_year,cited_by_count,ids,primary_location,best_oa_location,locations",
             "search.semantic": query,
         }
         if self._api_key:
@@ -123,7 +123,7 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         per_page = min(max(target * 2, 8), 25)
         params: dict[str, str | int] = {
             "per-page": per_page,
-            "select": "id,title,authorships,ids,primary_location,best_oa_location,locations",
+            "select": "id,title,authorships,publication_year,cited_by_count,ids,primary_location,best_oa_location,locations",
             "search": query,
         }
         if self._api_key:
@@ -214,7 +214,11 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
                     name = author.get("display_name")
                     if isinstance(name, str) and name.strip():
                         authors.append(name.strip())
-        return PaperMetadata(title=title.strip(), authors=authors)
+        raw_year = item.get("publication_year")
+        year = int(raw_year) if isinstance(raw_year, (int, float)) else None
+        raw_cbc = item.get("cited_by_count")
+        cited_by_count = int(raw_cbc) if isinstance(raw_cbc, (int, float)) else None
+        return PaperMetadata(title=title.strip(), authors=authors, year=year, cited_by_count=cited_by_count)
 
     @classmethod
     def extract_arxiv_ids_from_openalex(

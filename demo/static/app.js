@@ -4,6 +4,7 @@
 let es = null;
 let advancedMode = false;
 let activeQueryFilter = null;
+let minYearFilter = 0;
 
 const paperData  = {};
 const queryToIds = {};   // query string → Set of arxiv_ids
@@ -58,6 +59,7 @@ function renderPapers() {
 
   const sorted = Object.values(paperData)
     .filter(p => !filterSet || filterSet.has(p.id))
+    .filter(p => !minYearFilter || !p.year || p.year >= minYearFilter)
     .sort((a, b) => sortKey(a) - sortKey(b));
 
   // Remove cards no longer in filtered view
@@ -90,6 +92,15 @@ function renderPapers() {
     const authorsHtml = (p.authors && p.authors.length)
       ? `<div class="card-authors">${esc(p.authors.join(', '))}</div>`
       : (p.title ? `<div class="card-arxiv-id">${esc(p.id)}</div>` : '');
+
+    const metaParts = [];
+    if (p.year) metaParts.push(esc(String(p.year)));
+    if (p.citedBy != null) metaParts.push(`${p.citedBy.toLocaleString()} citations`);
+    const metaHtml = metaParts.length
+      ? `<div class="card-meta">${metaParts.join(' · ')}</div>` : '';
+
+    const labelHtml = p.label
+      ? `<span class="theorem-label">${esc(p.label)}</span>` : '';
 
     const subHtml = p.substatus
       ? `<div class="card-substatus">${esc(p.substatus)}</div>` : '';
@@ -131,10 +142,12 @@ function renderPapers() {
         <div class="card-main">
           ${titleHtml}
           ${authorsHtml}
+          ${metaHtml}
           ${subHtml}
           ${attrHtml}
         </div>
         <div class="card-right">
+          ${labelHtml}
           ${scoreHtml}
           <a class="arxiv-link" href="https://arxiv.org/abs/${esc(p.id)}" target="_blank"
              onclick="event.stopPropagation()">↗ arXiv</a>
@@ -194,6 +207,12 @@ function filterByQuery(q) {
   renderPapers();
 }
 
+function applyYearFilter() {
+  const val = document.getElementById('year-filter').value;
+  minYearFilter = val ? parseInt(val, 10) : 0;
+  renderPapers();
+}
+
 function handle(ev) {
   if (ev.type === 'query_start') {
     // pipeline strip already shown by startSearch(); just update stage
@@ -221,9 +240,9 @@ function handle(ev) {
       ev.arxiv_ids.forEach(id => {
         queryToIds[ev.query].add(id);
         if (!paperData[id]) {
-          const entry = { id, title: null, authors: null, score: null,
-                          state: 'pending', snippet: null, header: null,
-                          substatus: null, discoveredBy: [ev.query] };
+          const entry = { id, title: null, authors: null, year: null, citedBy: null,
+                          score: null, state: 'pending', snippet: null, header: null,
+                          label: null, substatus: null, discoveredBy: [ev.query] };
           paperData[id] = entry;
           // Register bare-ID alias for metadata_update lookup (metadata fetcher
           // normalizes IDs by stripping version suffix).
@@ -249,6 +268,8 @@ function handle(ev) {
       if (target) {
         target.title   = pm.title   || null;
         target.authors = pm.authors || null;
+        if (pm.year != null)           target.year    = pm.year;
+        if (pm.cited_by_count != null) target.citedBy = pm.cited_by_count;
       }
     });
     renderPapers();
@@ -275,6 +296,7 @@ function handle(ev) {
     p.score    = ev.score;
     p.snippet  = ev.snippet;
     p.header   = ev.header;
+    p.label    = ev.label || null;
     p.substatus = null;
     p.state    = ev.matched ? 'matched' : 'no-match';
     if (ev.matched) matched++;
@@ -302,6 +324,9 @@ function startSearch() {
   Object.keys(queryToIds).forEach(k => delete queryToIds[k]);
   Object.keys(idAliases).forEach(k => delete idAliases[k]);
   activeQueryFilter = null;
+  minYearFilter = 0;
+  const yearEl = document.getElementById('year-filter');
+  if (yearEl) yearEl.value = '';
   window._queryList = [];
   discovered = reviewed = matched = queriesCount = 0;
   document.getElementById('papers').innerHTML = '';

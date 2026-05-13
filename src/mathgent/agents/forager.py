@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from ..observability.hooks import HookRegistry
 from ..models import LemmaMatch, LemmaHeader
 from ..observability import get_logger, logfire_info, trace_span
@@ -26,6 +26,7 @@ class ForagePlan:
     arxiv_id: str
     strictness: float
     headers: list[LemmaHeader]
+    header_labels: list[str] = field(default_factory=list)  # parallel to headers, may be shorter
 
 
 class ForagerAgent:
@@ -74,11 +75,19 @@ class ForagerAgent:
                 plan_time = time.perf_counter() - plan_start
                 await self._hooks.emit("plan_complete", plan=None, reason="no_headers", plan_time_s=round(plan_time, 4))
                 return None
+            # Fetch theorem labels (e.g. "Theorem 2.1") in parallel with header extraction.
+            # Both get_paper_headers() and get_theorem_labels() scan the document in order,
+            # so labels[i] corresponds to headers[i].  Best-effort: never block on failure.
+            try:
+                header_labels = await tools.get_theorem_labels(arxiv_id)
+            except Exception:
+                header_labels = []
             plan = ForagePlan(
                 query=query,
                 arxiv_id=arxiv_id,
                 strictness=strictness,
                 headers=headers,
+                header_labels=header_labels,
             )
             plan_time = time.perf_counter() - plan_start
             await self._hooks.emit("plan_complete", plan=plan, reason=None, plan_time_s=round(plan_time, 4))
@@ -117,6 +126,12 @@ class ForagerAgent:
             all_snippets = [s for _, s in header_snippets]
             scores = self._reranker.score_batch(plan.query, all_snippets)
 
+            # Build index → label map from ForagePlan (labels parallel to plan.headers).
+            header_label_map: dict[int, str] = {
+                plan.headers[i].line_number: plan.header_labels[i]
+                for i in range(min(len(plan.headers), len(plan.header_labels)))
+            }
+
             matches: list[LemmaMatch] = []
             for (header, snippet), snippet_score in zip(header_snippets, scores):
                 log.info("forage.header_selected arxiv_id={} selected_line={}", plan.arxiv_id, header.line_number)
@@ -135,6 +150,7 @@ class ForagerAgent:
                     header_line=header.line,
                     snippet=snippet,
                     score=snippet_score,
+                    label=header_label_map.get(header.line_number),
                 ))
 
             # Keep top-k by score

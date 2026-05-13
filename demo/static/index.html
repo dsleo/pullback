@@ -19,6 +19,14 @@
 <div class="search-bar">
   <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
          value="Banach fixed point theorem" />
+  <select id="year-filter" onchange="applyYearFilter()" title="Filter by publication year">
+    <option value="">Any year</option>
+    <option value="2022">2022+</option>
+    <option value="2020">2020+</option>
+    <option value="2018">2018+</option>
+    <option value="2015">2015+</option>
+    <option value="2010">2010+</option>
+  </select>
   <button id="search-btn" onclick="startSearch()">Search</button>
 </div>
 
