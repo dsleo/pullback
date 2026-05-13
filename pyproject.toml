@@ -59,3 +59,6 @@ exclude = ["tests/"]
 
 [tool.bandit]
 exclude_dirs = ["tests"]
+
+[tool.vercel]
+entrypoint = "api.py"
