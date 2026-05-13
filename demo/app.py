@@ -39,7 +39,7 @@ _DEMO_LOGS_DIR = Path(__file__).parent / "logs"
 _DEMO_LOGS_DIR.mkdir(parents=True, exist_ok=True)
 _demo_logger = logger.bind(component="demo")
 
-app = FastAPI(title="mathgent demo")
+app = FastAPI(title="The Pullback - Theorem Search")
 app.mount("/static", StaticFiles(directory=_STATIC_DIR), name="static")
 
 
