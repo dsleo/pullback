@@ -114,16 +114,13 @@ header span {
 .query-list { display: flex; flex-wrap: wrap; gap: 6px; min-height: 28px; }
 .query-badge {
   display: inline-flex; align-items: baseline; gap: 7px;
-  border: 1px solid var(--c-gold); border-radius: 3px;
-  padding: 5px 11px; background: var(--c-gold-light);
-  cursor: pointer; transition: opacity .12s;
-}
-.query-badge.variant {
-  border-color: var(--c-border-mid); background: var(--c-bg-alt);
+  border: 1px solid var(--c-border-mid); border-radius: 3px;
+  padding: 5px 11px; background: var(--c-bg-alt);
+  cursor: pointer; transition: opacity .12s, border-color .12s, background .12s;
 }
 .query-badge.active-filter {
-  border-color: var(--c-gold) !important;
-  background: var(--c-gold-light) !important;
+  border-color: var(--c-gold);
+  background: var(--c-gold-light);
   box-shadow: 0 0 0 2px rgba(212,168,67,.25);
 }
 .query-badge:hover { opacity: .85; }
