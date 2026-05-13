@@ -243,6 +243,7 @@ function handle(ev) {
   else if (ev.type === 'discovery') {
     if (ev.arxiv_ids && ev.arxiv_ids.length) {
       document.getElementById('results-section').style.display = '';
+      document.getElementById('adv-btn').style.display = '';
       if (!queryToIds[ev.query]) queryToIds[ev.query] = new Set();
       ev.arxiv_ids.forEach(id => {
         queryToIds[ev.query].add(id);
@@ -314,7 +315,6 @@ function handle(ev) {
   else if (ev.type === 'search_done') {
     es.close(); es = null;
     document.getElementById('search-btn').disabled = false;
-    document.getElementById('adv-btn').style.display = '';
     updateStage(`Found ${ev.matched} theorem match${ev.matched !== 1 ? 'es' : ''} across ${ev.total} papers · ${ev.latency_s.toFixed(1)}s`);
   }
 
