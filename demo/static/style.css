@@ -52,13 +52,6 @@ header span {
   transition: border-color .15s;
 }
 .search-bar input[type=text]::placeholder { color: var(--c-fg-3); }
-#year-filter {
-  border: 1px solid var(--c-border-mid); border-radius: 4px;
-  background: var(--c-bg); padding: 8px 10px; font-family: var(--f-mono);
-  font-size: .72rem; color: var(--c-fg-2); outline: none; cursor: pointer;
-  transition: border-color .15s;
-}
-#year-filter:focus { border-color: var(--c-gold); }
 .search-bar input[type=text]:focus {
   border-color: var(--c-gold);
   box-shadow: 0 0 0 3px rgba(212,168,67,.15);
@@ -78,11 +71,22 @@ header span {
         display: flex; flex-direction: column; gap: 24px; }
 
 /* ── section label ───────────────────────────────────────────────── */
+.results-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding-bottom: 8px; border-bottom: 1px solid var(--c-border);
+}
 .section-label {
   font-family: var(--f-mono); font-size: .6rem; letter-spacing: .16em;
   text-transform: uppercase; color: var(--c-fg-3);
-  padding-bottom: 8px; border-bottom: 1px solid var(--c-border);
 }
+#sort-btn {
+  font-family: var(--f-mono); font-size: .6rem; letter-spacing: .08em;
+  color: var(--c-fg-3); background: none; border: 1px solid var(--c-border);
+  border-radius: 3px; padding: 2px 8px; cursor: pointer;
+  transition: color .15s, border-color .15s;
+}
+#sort-btn:hover { color: var(--c-fg); border-color: var(--c-border-mid); }
+#sort-btn.active { color: var(--c-gold); border-color: var(--c-gold); }
 
 /* ── pipeline strip ──────────────────────────────────────────────── */
 .pipeline-strip { display: flex; flex-direction: column; gap: 10px; }

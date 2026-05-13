@@ -4,7 +4,7 @@
 let es = null;
 let advancedMode = false;
 let activeQueryFilter = null;
-let minYearFilter = 0;
+let sortMode = 'score';  // 'score' | 'year'
 
 const paperData  = {};
 const queryToIds = {};   // query string → Set of arxiv_ids
@@ -32,7 +32,11 @@ function extractSearchText(latex) {
 }
 
 function sortKey(p) {
-  if (p.state === 'matched')  return 0 - (p.score || 0);
+  if (p.state === 'matched') {
+    // Year sort: newest first (unknown year sorts last among matched)
+    if (sortMode === 'year') return p.year ? -p.year : 1;
+    return 0 - (p.score || 0);
+  }
   if (p.state === 'no-match') return 10 - (p.score || 0);
   if (p.state === 'working')  return 100;
   return 200;
@@ -59,7 +63,6 @@ function renderPapers() {
 
   const sorted = Object.values(paperData)
     .filter(p => !filterSet || filterSet.has(p.id))
-    .filter(p => !minYearFilter || !p.year || p.year >= minYearFilter)
     .sort((a, b) => sortKey(a) - sortKey(b));
 
   // Remove cards no longer in filtered view
@@ -207,9 +210,13 @@ function filterByQuery(q) {
   renderPapers();
 }
 
-function applyYearFilter() {
-  const val = document.getElementById('year-filter').value;
-  minYearFilter = val ? parseInt(val, 10) : 0;
+function toggleSortMode() {
+  sortMode = sortMode === 'score' ? 'year' : 'score';
+  const btn = document.getElementById('sort-btn');
+  if (btn) {
+    btn.textContent = sortMode === 'year' ? '⇅ Newest' : '⇅ Score';
+    btn.classList.toggle('active', sortMode === 'year');
+  }
   renderPapers();
 }
 
@@ -324,9 +331,9 @@ function startSearch() {
   Object.keys(queryToIds).forEach(k => delete queryToIds[k]);
   Object.keys(idAliases).forEach(k => delete idAliases[k]);
   activeQueryFilter = null;
-  minYearFilter = 0;
-  const yearEl = document.getElementById('year-filter');
-  if (yearEl) yearEl.value = '';
+  sortMode = 'score';
+  const sortBtn = document.getElementById('sort-btn');
+  if (sortBtn) { sortBtn.textContent = '⇅ Score'; sortBtn.classList.remove('active'); }
   window._queryList = [];
   discovered = reviewed = matched = queriesCount = 0;
   document.getElementById('papers').innerHTML = '';
