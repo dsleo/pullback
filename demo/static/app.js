@@ -83,7 +83,7 @@ function renderPapers() {
     card.className = 'paper-card ' + (p.state || 'pending');
 
     // Score: always shown in advanced mode; otherwise only for matched papers
-    const showScore = p.score != null && (p.state === 'matched' || advancedMode);
+    const showScore = p.score != null && advancedMode;
     const scoreHtml = showScore
       ? `<div class="card-score${p.state !== 'matched' ? ' low' : ''}">${p.score.toFixed(3)}</div>`
       : '';
