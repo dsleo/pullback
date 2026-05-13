@@ -18,15 +18,15 @@ except ImportError:
     pass
 
 
-def _find_config_path() -> Path:
-    """Find config.json starting from repo root."""
+def _find_config_path() -> Path | None:
+    """Find config.json starting from repo root. Returns None if not found."""
     current = Path(__file__).resolve()
     while current != current.parent:
         config_path = current.parent / "config.json"
         if config_path.exists():
             return config_path
         current = current.parent
-    raise FileNotFoundError("config.json not found in any parent directory")
+    return None
 
 
 def _validate_config(cfg: dict[str, Any]) -> None:
@@ -65,6 +65,46 @@ def _validate_config(cfg: dict[str, Any]) -> None:
         raise ValueError("ranking.reranker must be a string")
 
 
+def _default_config() -> dict[str, Any]:
+    """Return a minimal default config for serverless environments where config.json is not available."""
+    return {
+        "retrieval": {
+            "discovery_providers": [],
+            "top_k_headers": 10,
+            "max_query_attempts": 1,
+            "max_results": 20,
+        },
+        "execution": {
+            "concurrency": 1,
+            "timeout_seconds": 30.0,
+            "provider_timeout_seconds": 8.0,
+            "max_replan_rounds": 1,
+        },
+        "models": {
+            "librarian": "openai/gpt-4o-mini",
+            "llm_search": "openai/gpt-4o-mini",
+            "query_planner": None,
+        },
+        "providers": {
+            "openalex": {"api_key": None, "mailto": None},
+            "openrouter": {"api_key": None, "max_output_tokens": 400},
+        },
+        "ranking": {
+            "reranker": "token-overlap",
+            "colbert_endpoint": None,
+            "bge_model": None,
+            "openrouter_model": "cohere/rerank-v3.5",
+        },
+        "sandbox": {
+            "local_tex_dir": None,
+            "type": "e2b",
+        },
+        "features": {
+            "agentic": False,
+        },
+    }
+
+
 def load_config() -> dict[str, Any]:
     """
     Load config from config.json with environment variable overrides.
@@ -72,15 +112,20 @@ def load_config() -> dict[str, Any]:
     Environment variables are read ONLY as overrides after config.json is loaded.
     If an env var is set, it takes precedence over the config file value.
 
+    On serverless/Vercel, config.json may not be available; a default config is used.
+
     Returns:
         Merged configuration dictionary
     """
     config_path = _find_config_path()
 
-    with config_path.open("r", encoding="utf-8") as f:
-        cfg = json.load(f)
-
-    _validate_config(cfg)
+    if config_path is None:
+        # Serverless environment: use default config
+        cfg = _default_config()
+    else:
+        with config_path.open("r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        _validate_config(cfg)
 
     # Apply environment variable overrides
     _apply_env_overrides(cfg)
