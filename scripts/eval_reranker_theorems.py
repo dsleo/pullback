@@ -22,8 +22,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from mathgent.config import get_config
-from mathgent.rerank.factory import create_reranker
+from pullback.config import get_config
+from pullback.rerank.factory import create_reranker
 
 
 @dataclass

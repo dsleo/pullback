@@ -1,7 +1,7 @@
 import asyncio
 
-from mathgent.agents import ForagePlan, ForagerAgent
-from mathgent.models import LemmaHeader
+from pullback.agents import ForagePlan, ForagerAgent
+from pullback.models import LemmaHeader
 
 
 class _FakeTools:

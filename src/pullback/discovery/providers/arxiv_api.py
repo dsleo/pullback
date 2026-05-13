@@ -30,7 +30,7 @@ class ArxivAPIDiscoveryClient(PaperDiscoveryClient):
         *,
         timeout_seconds: float = 12.0,
         sort: str = "relevance",
-        user_agent: str = "mathgent/0.1",
+        user_agent: str = "pullback/0.1",
     ) -> None:
         self._timeout_seconds = timeout_seconds
         self._sort = sort

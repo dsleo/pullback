@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import asyncio
 
-from mathgent.sandbox import LocalSandboxRunner
-from mathgent.tools import ExtractionTools
+from pullback.sandbox import LocalSandboxRunner
+from pullback.tools import ExtractionTools
 
 
 # ---------------------------------------------------------------------------

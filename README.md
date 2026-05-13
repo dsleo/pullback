@@ -1,4 +1,4 @@
-# Mathgent
+# The Pullback
 
 Agentic search engine for mathematical theorems and lemmas over arXiv LaTeX sources.
 

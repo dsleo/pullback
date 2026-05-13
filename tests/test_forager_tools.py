@@ -1,7 +1,7 @@
 import asyncio
 
-from mathgent.sandbox import LocalSandboxRunner
-from mathgent.tools import ExtractionTools
+from pullback.sandbox import LocalSandboxRunner
+from pullback.tools import ExtractionTools
 
 DUMMY_TEX = r"""
 \\section{Intro}

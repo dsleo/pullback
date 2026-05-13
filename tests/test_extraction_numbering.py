@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 
-from mathgent.extraction.numbering import _build_label_scan_command, extract_theorem_labels_from_text
+from pullback.extraction.numbering import _build_label_scan_command, extract_theorem_labels_from_text
 
 
 def test_extract_theorem_labels_from_text() -> None:

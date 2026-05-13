@@ -1,8 +1,8 @@
 import asyncio
 import time
 
-from mathgent.discovery import PaperMetadata, fetch_arxiv_metadata
-import mathgent.discovery.arxiv.metadata as arxiv_metadata
+from pullback.discovery import PaperMetadata, fetch_arxiv_metadata
+import pullback.discovery.arxiv.metadata as arxiv_metadata
 
 
 def test_fetch_arxiv_metadata_dedupes_ids(monkeypatch) -> None:

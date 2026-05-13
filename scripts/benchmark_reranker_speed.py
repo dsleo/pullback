@@ -7,7 +7,7 @@ import json
 import time
 from pathlib import Path
 
-from mathgent.rerank import create_reranker
+from pullback.rerank import create_reranker
 
 
 def main() -> None:

@@ -3,14 +3,14 @@ import json
 
 import httpx
 
-from mathgent.discovery import (
+from pullback.discovery import (
     ChainedDiscoveryClient,
     DiscoveryAccessError,
     OpenRouterSearchDiscoveryClient,
     OpenAlexDiscoveryClient,
     ZbMathOpenDiscoveryClient,
 )
-from mathgent.discovery.arxiv.ids import extract_arxiv_id_from_text, normalize_arxiv_id
+from pullback.discovery.arxiv.ids import extract_arxiv_id_from_text, normalize_arxiv_id
 
 
 def test_extract_arxiv_id_from_text_handles_url_and_versions() -> None:
@@ -218,7 +218,7 @@ def test_zbmath_404_is_treated_as_empty() -> None:
 
 
 def test_zbmath_discover_arxiv_ids_dedupes() -> None:
-    from mathgent.discovery.arxiv.ids import dedupe_preserve
+    from pullback.discovery.arxiv.ids import dedupe_preserve
 
     client = ZbMathOpenDiscoveryClient(timeout_seconds=2.0)
     hit = {

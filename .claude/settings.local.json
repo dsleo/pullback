@@ -56,7 +56,10 @@
       "Bash(sed -n '85,145p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/src/mathgent/discovery/pipeline.py)",
       "mcp__plugin_claude-mem_mcp-search__get_observations",
       "Bash(sed -n '82,86p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/static/app.js)",
-      "Bash(sed -n '88,104p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/stream.py)"
+      "Bash(sed -n '88,104p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/stream.py)",
+      "Bash(sed -n '223,226p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/static/app.js)",
+      "Bash(sed -n '293,298p' /Users/leodreyfusschmidt/Desktop/Repos/mathgent/demo/static/app.js)",
+      "Bash(git remote:*)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 from hypothesis import given, strategies as st
 
-from mathgent.discovery.arxiv.ids import normalize_arxiv_id
-from mathgent.extraction.parsing import extract_environment_name, parse_grep_headers, window_bounds
+from pullback.discovery.arxiv.ids import normalize_arxiv_id
+from pullback.extraction.parsing import extract_environment_name, parse_grep_headers, window_bounds
 
 
 @given(

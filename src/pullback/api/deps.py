@@ -183,7 +183,7 @@ def _build_runtime_deps(settings: AppSettings) -> _RuntimeDeps:
     discovery_client, active_providers = _build_discovery_layer(settings)
     if not active_providers:
         raise RuntimeError(
-            "No discovery providers configured. Set MATHGENT_DISCOVERY_ORDER to include 'arxiv_api', "
+            "No discovery providers configured. Set PULLBACK_DISCOVERY_ORDER to include 'arxiv_api', "
             "or configure OPENALEX_API_KEY and/or OPENROUTER_API_KEY."
         )
 
@@ -191,7 +191,7 @@ def _build_runtime_deps(settings: AppSettings) -> _RuntimeDeps:
     forager = _build_forager(settings, extraction_tools)
 
     metadata_fetcher: PaperMetadataFetcher | None
-    if os.getenv("MATHGENT_DISABLE_METADATA_FETCH", "").strip().lower() in {"1", "true", "yes", "on"}:
+    if os.getenv("PULLBACK_DISABLE_METADATA_FETCH", "").strip().lower() in {"1", "true", "yes", "on"}:
         metadata_fetcher = None
     else:
         metadata_fetcher = partial(

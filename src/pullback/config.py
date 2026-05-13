@@ -91,63 +91,63 @@ def load_config() -> dict[str, Any]:
 def _apply_env_overrides(cfg: dict[str, Any]) -> None:
     """Apply environment variable overrides to config."""
     # Retrieval overrides
-    if discovery_providers := os.getenv("MATHGENT_DISCOVERY_PROVIDERS"):
+    if discovery_providers := os.getenv("PULLBACK_DISCOVERY_PROVIDERS"):
         cfg["retrieval"]["discovery_providers"] = [s.strip() for s in discovery_providers.split(",")]
-    if top_k := os.getenv("MATHGENT_TOP_K_HEADERS"):
+    if top_k := os.getenv("PULLBACK_TOP_K_HEADERS"):
         cfg["retrieval"]["top_k_headers"] = int(top_k)
-    if max_attempts := os.getenv("MATHGENT_MAX_QUERY_ATTEMPTS"):
+    if max_attempts := os.getenv("PULLBACK_MAX_QUERY_ATTEMPTS"):
         cfg["retrieval"]["max_query_attempts"] = int(max_attempts)
 
     # Execution overrides
-    if concurrency := os.getenv("MATHGENT_DELEGATE_CONCURRENCY"):
+    if concurrency := os.getenv("PULLBACK_DELEGATE_CONCURRENCY"):
         cfg["execution"]["concurrency"] = int(concurrency)
-    if timeout := os.getenv("MATHGENT_TIMEOUT_SECONDS"):
+    if timeout := os.getenv("PULLBACK_TIMEOUT_SECONDS"):
         cfg["execution"]["timeout_seconds"] = float(timeout)
-    if replan := os.getenv("MATHGENT_MAX_REPLAN_ROUNDS"):
+    if replan := os.getenv("PULLBACK_MAX_REPLAN_ROUNDS"):
         cfg["execution"]["max_replan_rounds"] = int(replan)
 
     # Models overrides
-    if librarian := os.getenv("MATHGENT_LIBRARIAN_MODEL"):
+    if librarian := os.getenv("PULLBACK_LIBRARIAN_MODEL"):
         cfg["models"]["librarian"] = librarian
-    if query_planner := os.getenv("MATHGENT_QUERY_PLANNER_MODEL"):
+    if query_planner := os.getenv("PULLBACK_QUERY_PLANNER_MODEL"):
         cfg["models"]["query_planner"] = query_planner
-    if llm_search_model := os.getenv("MATHGENT_LLM_SEARCH_MODEL"):
+    if llm_search_model := os.getenv("PULLBACK_LLM_SEARCH_MODEL"):
         cfg["models"]["llm_search"] = llm_search_model
 
     # Ranking overrides
-    if reranker := os.getenv("MATHGENT_RERANKER"):
+    if reranker := os.getenv("PULLBACK_RERANKER"):
         cfg["ranking"]["reranker"] = reranker
-    if colbert := os.getenv("MATHGENT_COLBERT_ENDPOINT"):
+    if colbert := os.getenv("PULLBACK_COLBERT_ENDPOINT"):
         cfg["ranking"]["colbert_endpoint"] = colbert
-    if bge := os.getenv("MATHGENT_RERANKER_BGE_MODEL"):
+    if bge := os.getenv("PULLBACK_RERANKER_BGE_MODEL"):
         cfg["ranking"]["bge_model"] = bge
-    if openrouter_model := os.getenv("MATHGENT_RERANKER_OPENROUTER_MODEL"):
+    if openrouter_model := os.getenv("PULLBACK_RERANKER_OPENROUTER_MODEL"):
         cfg["ranking"]["openrouter_model"] = openrouter_model
 
     # Sandbox overrides
-    if local_dir := os.getenv("MATHGENT_LOCAL_TEX_DIR"):
+    if local_dir := os.getenv("PULLBACK_LOCAL_TEX_DIR"):
         cfg["sandbox"]["local_tex_dir"] = local_dir
-    if e2b_timeout := os.getenv("MATHGENT_E2B_TIMEOUT_S"):
+    if e2b_timeout := os.getenv("PULLBACK_E2B_TIMEOUT_S"):
         cfg["sandbox"]["e2b_timeout_seconds"] = float(e2b_timeout)
 
     # Observability overrides
-    if log_level := os.getenv("MATHGENT_LOG_LEVEL"):
+    if log_level := os.getenv("PULLBACK_LOG_LEVEL"):
         cfg["observability"]["log_level"] = log_level
-    if log_json := os.getenv("MATHGENT_LOG_JSON"):
+    if log_json := os.getenv("PULLBACK_LOG_JSON"):
         cfg["observability"]["log_json"] = log_json.lower() in {"1", "true", "yes", "on"}
-    if log_file_enabled := os.getenv("MATHGENT_LOG_FILE_ENABLED"):
+    if log_file_enabled := os.getenv("PULLBACK_LOG_FILE_ENABLED"):
         cfg["observability"]["log_file_enabled"] = log_file_enabled.lower() in {"1", "true", "yes", "on"}
-    if log_file := os.getenv("MATHGENT_LOG_FILE"):
+    if log_file := os.getenv("PULLBACK_LOG_FILE"):
         cfg["observability"]["log_file"] = log_file
-    if log_rotation := os.getenv("MATHGENT_LOG_FILE_ROTATION"):
+    if log_rotation := os.getenv("PULLBACK_LOG_FILE_ROTATION"):
         cfg["observability"]["log_file_rotation"] = log_rotation
-    if log_retention := os.getenv("MATHGENT_LOG_FILE_RETENTION"):
+    if log_retention := os.getenv("PULLBACK_LOG_FILE_RETENTION"):
         cfg["observability"]["log_file_retention"] = log_retention
-    if enable_logfire := os.getenv("MATHGENT_ENABLE_LOGFIRE"):
+    if enable_logfire := os.getenv("PULLBACK_ENABLE_LOGFIRE"):
         cfg["observability"]["enable_logfire"] = enable_logfire.lower() in {"1", "true", "yes", "on"}
-    if logfire_send := os.getenv("MATHGENT_LOGFIRE_SEND"):
+    if logfire_send := os.getenv("PULLBACK_LOGFIRE_SEND"):
         cfg["observability"]["logfire_send"] = logfire_send.lower() in {"1", "true", "yes", "on"}
-    if pydantic_ai := os.getenv("MATHGENT_PYDANTICAI_INSTRUMENT"):
+    if pydantic_ai := os.getenv("PULLBACK_PYDANTICAI_INSTRUMENT"):
         cfg["observability"]["pydanticai_instrument"] = pydantic_ai.lower() in {"1", "true", "yes", "on"}
 
     # Provider API keys (prefer env vars, fallback to config)
@@ -158,16 +158,16 @@ def _apply_env_overrides(cfg: dict[str, Any]) -> None:
     if openrouter_key := os.getenv("OPENROUTER_API_KEY"):
         if "openrouter" in cfg["providers"]:
             cfg["providers"]["openrouter"]["api_key"] = openrouter_key
-    if openrouter_tokens := os.getenv("MATHGENT_OPENROUTER_SEARCH_MAX_OUTPUT_TOKENS"):
+    if openrouter_tokens := os.getenv("PULLBACK_OPENROUTER_SEARCH_MAX_OUTPUT_TOKENS"):
         if "openrouter" in cfg["providers"]:
             cfg["providers"]["openrouter"]["max_output_tokens"] = int(openrouter_tokens)
 
     # Features overrides
-    if agentic := os.getenv("MATHGENT_AGENTIC"):
+    if agentic := os.getenv("PULLBACK_AGENTIC"):
         cfg["features"]["agentic"] = agentic.lower() in {"1", "true", "yes", "on"}
-    if disable_metadata := os.getenv("MATHGENT_DISABLE_METADATA_FETCH"):
+    if disable_metadata := os.getenv("PULLBACK_DISABLE_METADATA_FETCH"):
         cfg["features"]["disable_metadata_fetch"] = disable_metadata.lower() in {"1", "true", "yes", "on"}
-    if numbering := os.getenv("MATHGENT_NUMBERING_COUNT_LABELS"):
+    if numbering := os.getenv("PULLBACK_NUMBERING_COUNT_LABELS"):
         cfg["features"]["numbering_count_labels"] = numbering.lower() in {"1", "true", "yes", "on"}
 
 

@@ -1,9 +1,9 @@
 from fastapi.testclient import TestClient
 import importlib
 
-from mathgent.api.app import create_app
-from mathgent.discovery import DiscoveryAccessError
-from mathgent.models import SearchResponse, SearchResultEntry
+from pullback.api.app import create_app
+from pullback.discovery import DiscoveryAccessError
+from pullback.models import SearchResponse, SearchResultEntry
 
 
 class _GoodOrchestrator:
@@ -23,7 +23,7 @@ class _DiscoveryFailOrchestrator:
 
 
 def test_app_builds_orchestrator_once_per_lifespan(monkeypatch) -> None:
-    app_module = importlib.import_module("mathgent.api.app")
+    app_module = importlib.import_module("pullback.api.app")
     build_calls = {"count": 0}
 
     def _builder(settings):
@@ -47,7 +47,7 @@ def test_app_builds_orchestrator_once_per_lifespan(monkeypatch) -> None:
 
 
 def test_search_endpoint_success(monkeypatch) -> None:
-    app_module = importlib.import_module("mathgent.api.app")
+    app_module = importlib.import_module("pullback.api.app")
 
     monkeypatch.setattr(app_module, "build_orchestrator", lambda settings: _GoodOrchestrator())
     with TestClient(create_app()) as client:
@@ -68,7 +68,7 @@ def test_search_endpoint_success(monkeypatch) -> None:
 
 
 def test_search_endpoint_maps_discovery_errors_to_502(monkeypatch) -> None:
-    app_module = importlib.import_module("mathgent.api.app")
+    app_module = importlib.import_module("pullback.api.app")
 
     monkeypatch.setattr(app_module, "build_orchestrator", lambda settings: _DiscoveryFailOrchestrator())
     with TestClient(create_app()) as client:
@@ -91,7 +91,7 @@ class _RuntimeFailOrchestrator:
 
 
 def test_search_endpoint_sanitizes_runtime_errors(monkeypatch) -> None:
-    app_module = importlib.import_module("mathgent.api.app")
+    app_module = importlib.import_module("pullback.api.app")
 
     monkeypatch.setattr(app_module, "build_orchestrator", lambda settings: _RuntimeFailOrchestrator())
     with TestClient(create_app()) as client:
@@ -108,7 +108,7 @@ def test_search_endpoint_sanitizes_runtime_errors(monkeypatch) -> None:
 
 
 def test_app_closes_orchestrator_on_lifespan_exit(monkeypatch) -> None:
-    app_module = importlib.import_module("mathgent.api.app")
+    app_module = importlib.import_module("pullback.api.app")
     state = {"closed": 0}
 
     class _ClosableOrchestrator(_GoodOrchestrator):

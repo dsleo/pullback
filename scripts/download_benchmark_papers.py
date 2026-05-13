@@ -79,7 +79,7 @@ def download_and_extract(arxiv_id: str) -> bool:
 
     for url in urls:
         try:
-            req = Request(url, headers={"User-Agent": "mathgent/0.1"})
+            req = Request(url, headers={"User-Agent": "pullback/0.1"})
             with urlopen(req, timeout=30) as resp:
                 data = resp.read()
             break

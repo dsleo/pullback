@@ -1,4 +1,4 @@
-"""mathgent live demo — FastAPI app with SSE streaming.
+"""pullback live demo — FastAPI app with SSE streaming.
 
 Run:
     set -a && source .env.local && set +a
@@ -23,8 +23,8 @@ from loguru import logger
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from mathgent.api.deps import build_orchestrator  # noqa: E402
-from mathgent.settings import load_settings as _load_settings  # noqa: E402
+from pullback.api.deps import build_orchestrator  # noqa: E402
+from pullback.settings import load_settings as _load_settings  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from demo.stream import _run_stream  # noqa: E402

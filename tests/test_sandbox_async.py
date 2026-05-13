@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import httpx
 
-from mathgent.sandbox.e2b import E2BSandboxRunner
-from mathgent.sandbox.local import LocalSandboxRunner
+from pullback.sandbox.e2b import E2BSandboxRunner
+from pullback.sandbox.local import LocalSandboxRunner
 
 
 @dataclass

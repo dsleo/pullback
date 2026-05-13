@@ -1,9 +1,9 @@
 import asyncio
 import time
 
-from mathgent.discovery import PaperMetadata
-from mathgent.models import LemmaMatch, SearchResponse
-from mathgent.orchestration import LibrarianOrchestrator
+from pullback.discovery import PaperMetadata
+from pullback.models import LemmaMatch, SearchResponse
+from pullback.orchestration import LibrarianOrchestrator
 
 
 class FakeDiscoveryClient:
@@ -21,7 +21,7 @@ class FakeDiscoveryClientMany:
 
 class FakeForager:
     def __init__(self) -> None:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
 
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:
@@ -37,7 +37,7 @@ class FakeForager:
 
 class FailingForager:
     def __init__(self) -> None:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
 
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:
@@ -54,7 +54,7 @@ class FailingForager:
 
 class LateMatchForager:
     def __init__(self) -> None:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
 
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:
@@ -71,7 +71,7 @@ class LateMatchForager:
 
 class PrefixMatchForager:
     def __init__(self) -> None:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
         self.calls: list[str] = []
 
@@ -91,7 +91,7 @@ class PrefixMatchForager:
 
 class CountingForager:
     def __init__(self) -> None:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
         self.calls: list[str] = []
 
@@ -117,7 +117,7 @@ class AdaptiveDiscoveryClient:
 
 class AdaptiveForager:
     def __init__(self) -> None:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
 
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:

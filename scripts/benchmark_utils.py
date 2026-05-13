@@ -8,9 +8,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from mathgent.discovery.arxiv.ids import normalize_arxiv_id
-from mathgent.extraction.parsing import extract_environment_token
-from mathgent.observability import get_logger
+from pullback.discovery.arxiv.ids import normalize_arxiv_id
+from pullback.extraction.parsing import extract_environment_token
+from pullback.observability import get_logger
 
 log = get_logger("eval_benchmark")
 

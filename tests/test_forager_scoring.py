@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import asyncio
 
-from mathgent.agents import ForagePlan, ForagerAgent
-from mathgent.models import LemmaHeader, LemmaMatch
+from pullback.agents import ForagePlan, ForagerAgent
+from pullback.models import LemmaHeader, LemmaMatch
 
 
 # ---------------------------------------------------------------------------

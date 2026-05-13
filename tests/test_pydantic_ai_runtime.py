@@ -6,9 +6,9 @@ from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
 from pydantic_ai.models.test import TestModel
 
-from mathgent.discovery import DiscoveryAccessError
-from mathgent.models import LemmaMatch
-from mathgent.orchestration import LibrarianOrchestrator
+from pullback.discovery import DiscoveryAccessError
+from pullback.models import LemmaMatch
+from pullback.orchestration import LibrarianOrchestrator
 
 
 class _Discovery:

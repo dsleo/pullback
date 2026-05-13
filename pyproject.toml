@@ -1,7 +1,7 @@
 [project]
-name = "mathgent"
+name = "pullback"
 version = "0.1.0"
-description = "PydanticAI multi-agent lemma foraging PoC"
+description = "Theorem search via PydanticAI multi-agent lemma foraging"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

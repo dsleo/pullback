@@ -116,7 +116,7 @@ def build_source_resolution_code(arxiv_id: str) -> str:
         "    errors = []\n"
         "    for url in urls:\n"
         "        try:\n"
-        "            req = urllib.request.Request(url, headers={'User-Agent': 'mathgent/0.1'})\n"
+        "            req = urllib.request.Request(url, headers={'User-Agent': 'pullback/0.1'})\n"
         "            with urllib.request.urlopen(req, timeout=60) as resp:\n"
         "                data = resp.read()\n"
         "                ctype = (resp.headers.get('Content-Type') or '').lower()\n"

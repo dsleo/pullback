@@ -87,7 +87,7 @@ def _clean_title(title: str) -> str:
 
 
 def _load_count_labels() -> set[str]:
-    raw = os.getenv("MATHGENT_NUMBERING_COUNT_LABELS")
+    raw = os.getenv("PULLBACK_NUMBERING_COUNT_LABELS")
     if raw:
         labels = {item.strip().lower() for item in raw.split(",") if item.strip()}
         if labels:
@@ -842,7 +842,7 @@ def _build_label_scan_command(path: str) -> str:
         f"keywords = {tuple(THEOREM_LIKE_KEYWORDS)!r}\n"
         f"label_map = {tuple(_LABEL_MAP)!r}\n"
         f"count_labels = set({tuple(sorted(_DEFAULT_COUNT_LABELS))!r})\n"
-        "raw_count_labels = os.getenv('MATHGENT_NUMBERING_COUNT_LABELS', '')\n"
+        "raw_count_labels = os.getenv('PULLBACK_NUMBERING_COUNT_LABELS', '')\n"
         "if raw_count_labels.strip():\n"
         "    count_labels = {item.strip().lower() for item in raw_count_labels.split(',') if item.strip()}\n"
         "\n"

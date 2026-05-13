@@ -27,13 +27,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from mathgent.api.deps import build_orchestrator  # noqa: E402
-from mathgent.config import get_config  # noqa: E402
-from mathgent.discovery.arxiv.ids import normalize_arxiv_id  # noqa: E402
-from mathgent.extraction.parsing import extract_environment_token  # noqa: E402
-from mathgent.rerank.factory import create_reranker  # noqa: E402
-from mathgent.settings import load_settings  # noqa: E402
-from mathgent.observability import get_logger  # noqa: E402
+from pullback.api.deps import build_orchestrator  # noqa: E402
+from pullback.config import get_config  # noqa: E402
+from pullback.discovery.arxiv.ids import normalize_arxiv_id  # noqa: E402
+from pullback.extraction.parsing import extract_environment_token  # noqa: E402
+from pullback.rerank.factory import create_reranker  # noqa: E402
+from pullback.settings import load_settings  # noqa: E402
+from pullback.observability import get_logger  # noqa: E402
 
 log = get_logger("eval_benchmark")
 
@@ -755,7 +755,7 @@ def _summarize(results: list[BenchmarkResult]) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Mathgent benchmark on a JSONL dataset.")
+    parser = argparse.ArgumentParser(description="Run Pullback benchmark on a JSONL dataset.")
     parser.add_argument(
         "--data",
         default=str(ROOT / "data" / "benchmark_clean_71.jsonl"),

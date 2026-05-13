@@ -22,9 +22,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from mathgent.api.deps import build_orchestrator
-from mathgent.observability import get_logger
-from mathgent.tools import ExtractionTools
+from pullback.api.deps import build_orchestrator
+from pullback.observability import get_logger
+from pullback.tools import ExtractionTools
 
 # Load .env variables
 load_dotenv(".env.local", override=False)

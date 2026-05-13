@@ -1,4 +1,4 @@
-"""FastAPI app factory and lifespan wiring for Mathgent."""
+"""FastAPI app factory and lifespan wiring for Pullback."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ async def _lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Mathgent Lemma Search", lifespan=_lifespan)
+    app = FastAPI(title="Pullback Lemma Search", lifespan=_lifespan)
     app.middleware("http")(request_context_middleware)
     app.include_router(router)
     return app

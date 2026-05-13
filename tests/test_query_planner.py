@@ -2,7 +2,7 @@ import asyncio
 
 from pydantic_ai.usage import UsageLimits
 
-from mathgent.orchestration.query_planner import QueryPlannerService
+from pullback.orchestration.query_planner import QueryPlannerService
 
 
 def test_query_attempts_disabled_is_base_only() -> None:

@@ -31,10 +31,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from mathgent.api.deps import build_orchestrator
-from mathgent.config import get_config
-from mathgent.settings import load_settings
-from mathgent.observability import get_logger
+from pullback.api.deps import build_orchestrator
+from pullback.config import get_config
+from pullback.settings import load_settings
+from pullback.observability import get_logger
 
 log = get_logger("build_theorem_dataset")
 

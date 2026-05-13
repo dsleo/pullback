@@ -15,8 +15,8 @@ import time
 
 import pytest
 
-from mathgent.models import LemmaMatch, SearchResponse
-from mathgent.orchestration import LibrarianOrchestrator
+from pullback.models import LemmaMatch, SearchResponse
+from pullback.orchestration import LibrarianOrchestrator
 
 
 # ---------------------------------------------------------------------------
@@ -36,7 +36,7 @@ class _TimestampedForager:
     def __init__(self, delay: float = 0.0) -> None:
         self.start_times: dict[str, float] = {}
         self._delay = delay
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
 
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:
@@ -78,7 +78,7 @@ class _ScoredForager:
     """Returns a configurable score per arxiv_id."""
     def __init__(self, scores: dict[str, float]) -> None:
         self._scores = scores
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         self._reranker = TokenOverlapReranker()
 
     async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:
@@ -326,7 +326,7 @@ def test_forager_concurrency_bounded() -> None:
     current = [0]
 
     class PeakTrackingForager:
-        from mathgent.rerank import TokenOverlapReranker
+        from pullback.rerank import TokenOverlapReranker
         _reranker = TokenOverlapReranker()
 
         async def forage(self, query: str, arxiv_id: str, strictness: float) -> list[LemmaMatch]:

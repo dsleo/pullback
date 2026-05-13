@@ -1,6 +1,6 @@
 # Demo Run Logging
 
-The mathgent demo automatically captures logs for each search run in the `logs/` directory for debugging and analysis.
+The The Pullback demo automatically captures logs for each search run in the `logs/` directory for debugging and analysis.
 
 ## Log Files
 

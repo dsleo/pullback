@@ -11,8 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from mathgent.models import LemmaMatch, SearchResultEntry
-from mathgent.orchestration.result_policy import ResultPolicy
+from pullback.models import LemmaMatch, SearchResultEntry
+from pullback.orchestration.result_policy import ResultPolicy
 
 
 # ---------------------------------------------------------------------------

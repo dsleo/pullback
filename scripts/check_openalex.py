@@ -16,9 +16,9 @@ async def test_openalex():
     print("=" * 70)
 
     # Load from env vars
-    api_key = os.getenv("OPENALEX_API_KEY") or os.getenv("MATHGENT_OPENALEX_API_KEY")
+    api_key = os.getenv("OPENALEX_API_KEY") or os.getenv("PULLBACK_OPENALEX_API_KEY")
     mailto = os.getenv("OPENALEX_MAILTO") or "you@example.com"
-    timeout = float(os.getenv("MATHGENT_TIMEOUT_SECONDS", "30"))
+    timeout = float(os.getenv("PULLBACK_TIMEOUT_SECONDS", "30"))
 
     print(f"✓ Settings loaded from environment")
     print(f"  API Key: {api_key[:20]}..." if api_key else "  API Key: (none)")

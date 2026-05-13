@@ -13,7 +13,7 @@ uv pip install -e ".[dev]"
 
 **Run Server**
 ```bash
-PYTHONPATH=src uvicorn mathgent.api:app --reload --env-file .env.local
+PYTHONPATH=src uvicorn pullback.api:app --reload --env-file .env.local
 ```
 
 **Testing**
@@ -131,32 +131,32 @@ The repository includes an autonomous optimization loop for improving benchmark 
 
 ### Key Components
 
-- **Discovery**: `src/mathgent/discovery/`
+- **Discovery**: `src/pullback/discovery/`
   - `PaperDiscoveryClient`: Chains providers
   - Provider adapters: `providers/openalex.py`, `providers/zbmath_open.py`, etc.
   - arXiv helpers: ID normalization (`arxiv/ids.py`), metadata caching (`arxiv/metadata.py`)
 
-- **Extraction**: `src/mathgent/extraction/`
+- **Extraction**: `src/pullback/extraction/`
   - `HeaderGrepper` (`headers.py`): Regex-based scan for `\begin{theorem}`, `\begin{lemma}`, etc.
   - `BoundedBlockExtractor` (`blocks.py`): Extracts balanced LaTeX blocks with context lines
   - Numbering helpers (`numbering.py`) for environment parsing
 
-- **Reranking**: `src/mathgent/rerank/`
+- **Reranking**: `src/pullback/rerank/`
   - Base interface: `Reranker`
   - Implementations: `TokenOverlapReranker` (default), `BGEReranker`, `ColBERTReranker`
   - Lazy loading via `RerankerFactory`
 
-- **Sandbox**: `src/mathgent/sandbox/`
+- **Sandbox**: `src/pullback/sandbox/`
   - `LocalSandbox`: Reads `.tex` files from disk (for testing)
   - `E2BSandbox`: Fetches via E2B Code Interpreter (for arXiv papers)
   - `SourceFetcher`: Downloads papers from arXiv via `arxiv` library
 
-- **API & Dependency Injection**: `src/mathgent/api/`
+- **API & Dependency Injection**: `src/pullback/api/`
   - `app.py`: FastAPI factory with lifespan setup
   - `deps.py`: Builds orchestrator and wires discovery client, forager, sandbox
   - `routes.py`: `/search` POST endpoint
 
-- **Observability**: `src/mathgent/observability/`
+- **Observability**: `src/pullback/observability/`
   - Loguru-based logging with JSON/file output options
   - Logfire optional integration for distributed tracing
   - Hook system (`HookRegistry`) for async event listeners (used by forager, librarian)
@@ -190,6 +190,6 @@ The repository includes an autonomous optimization loop for improving benchmark 
 
 - **Set MATHGENT_LIBRARIAN_MODEL=test** to disable LLM-based planning (deterministic)
 - **Set MATHGENT_AGENTIC=0** to disable query replanning and agentic discovery wrapper
-- **Check logs**: `logs/mathgent.log` (rotates at 20MB, retains 14 days)
+- **Check logs**: `logs/pullback.log` (rotates at 20MB, retains 14 days)
 - **Enable Logfire traces**: Set `MATHGENT_LOGFIRE_SEND=1` (requires logfire account)
 - **Test single discovery provider**: Modify `MATHGENT_DISCOVERY_PROVIDERS` to isolate provider behavior

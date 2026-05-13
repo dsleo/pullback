@@ -1,6 +1,6 @@
 import asyncio
 
-from mathgent.tools import DiscoveryTools
+from pullback.tools import DiscoveryTools
 
 
 class _Provider:
