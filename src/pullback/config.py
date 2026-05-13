@@ -1,4 +1,4 @@
-"""Config loader for mathgent from config.json with env var override support."""
+"""Config loader for The Pullback from config.json with env var override support."""
 
 from __future__ import annotations
 

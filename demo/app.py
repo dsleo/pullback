@@ -166,6 +166,6 @@ async def pdf_snippet(arxiv_id: str, q: str = "") -> Response:
 if __name__ == "__main__":
     port = 7860
     url = f"http://localhost:{port}"
-    print(f"\n  mathgent demo → {url}\n")
+    print(f"\n  The Pullback → {url}\n")
     threading.Timer(1.2, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")

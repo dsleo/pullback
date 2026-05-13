@@ -59,7 +59,7 @@ class OpenRouterSearchDiscoveryClient(PaperDiscoveryClient):
         kwargs: dict = {"api_key": self._api_key}
         if self._base_url:
             kwargs["base_url"] = self._base_url
-            kwargs["default_headers"] = {"HTTP-Referer": "https://mathgent"}
+            kwargs["default_headers"] = {"HTTP-Referer": "https://pullback"}
         self._client = AsyncOpenAI(**kwargs)
         return self._client
 

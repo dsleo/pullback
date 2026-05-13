@@ -1,4 +1,4 @@
-"""SSE stream generator for the mathgent demo."""
+"""SSE stream generator for The Pullback demo."""
 
 from __future__ import annotations
 
