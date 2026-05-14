@@ -347,7 +347,7 @@ function startSearch() {
   document.getElementById('query-badges').innerHTML = '';
   addQueryBadge(query, 0);  // original query visible right away
 
-  es = new EventSource(`/stream?query=${encodeURIComponent(query)}`);
+  es = new EventSource(`/api/stream?query=${encodeURIComponent(query)}`);
   es.onmessage = e => handle(JSON.parse(e.data));
   es.onerror   = () => {
     updateStage('Connection error — please try again');
