@@ -1,21 +1,52 @@
-"""Vercel entrypoint for The Pullback.
+"""Vercel entrypoint for the mathgent demo (FastAPI + SSE).
 
-Imports the full demo app (which includes /stream SSE endpoint and static files)
-to provide the same experience as running locally.
+Vercel will detect a FastAPI instance named `app` in `app.py`.
+
+Static assets must live in `public/**` and are served by Vercel's CDN.
 """
 
-import sys
+from __future__ import annotations
+
+from datetime import datetime
 from pathlib import Path
 
-# Ensure imports work in Vercel's serverless environment
-repo_root = Path(__file__).parent
-src_path = repo_root / "src"
-if str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
-if str(repo_root) not in sys.path:
-    sys.path.insert(0, str(repo_root))
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, StreamingResponse
+from loguru import logger
 
-# Import the full demo app (has /stream endpoint, static files, everything)
-from demo.app import app  # noqa: F401
+from demo.stream import _run_stream
+from mathgent.api.deps import build_orchestrator
+from mathgent.settings import load_settings
 
-# Vercel requires the FastAPI app to be named 'app'
+_settings = load_settings()
+_MAX_RESULTS = _settings.librarian.max_results
+
+_PUBLIC_DIR = Path(__file__).parent / "public"
+
+app = FastAPI(title="mathgent demo")
+
+
+@app.get("/", include_in_schema=False)
+async def index() -> FileResponse:
+    return FileResponse(_PUBLIC_DIR / "index.html")
+
+
+@app.get("/stream")
+async def stream(
+    query: str = "Banach fixed point theorem",
+    strictness: float = 0.0,
+) -> StreamingResponse:
+    run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    logger.bind(component="demo").info(f"query={query} strictness={strictness} run={run_timestamp}")
+
+    return StreamingResponse(
+        _run_stream(query, _MAX_RESULTS, strictness, build_orchestrator),
+        media_type="text/event-stream",
+        headers={
+            # Avoid buffering so the browser receives events immediately.
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+

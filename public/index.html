@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mathgent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500;600&family=JetBrains+Mono:wght@300;400;500&family=Lora:ital,wght@1,400;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header>
+  <h1>mathgent</h1>
+  <span>theorem search</span>
+</header>
+
+<div class="search-bar">
+  <input type="text" id="query" placeholder="e.g. Banach fixed point theorem"
+         value="Banach fixed point theorem" />
+  <button id="search-btn" onclick="startSearch()">Search</button>
+</div>
+
+<div class="main">
+  <!-- Pipeline strip: shown immediately on search click -->
+  <div class="pipeline-strip" id="pipeline" style="display:none">
+    <div class="pipeline-row">
+      <span class="stage-text" id="stage-text"></span>
+      <span class="pipeline-counts" id="pipeline-counts"></span>
+      <button id="adv-btn" onclick="toggleAdvanced()" style="display:none"
+              title="Advanced mode: show scores and query attribution">ⓘ</button>
+    </div>
+    <div class="query-list" id="query-badges"></div>
+  </div>
+
+  <!-- Results -->
+  <div id="results-section" style="display:none">
+    <div class="results-header">
+      <span class="section-label">Results</span>
+      <button id="sort-btn" onclick="toggleSortMode()" title="Sort by score">⇅</button>
+    </div>
+    <div id="papers" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

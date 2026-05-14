@@ -65,6 +65,23 @@ python demo/app.py
 
 The demo streams the full pipeline in real time: query reformulation → provider discovery → per-paper foraging → ranked results. Each paper card shows the matched theorem snippet, score, and a direct link to the arXiv page. An **ⓘ** icon reveals advanced details (per-query attribution, strategy labels, raw scores).
 
+### Deploy — Vercel (FastAPI + SSE)
+
+This repo includes a Vercel-ready entrypoint:
+
+- `app.py` (FastAPI `app` instance)
+- `public/**` (static assets served by Vercel CDN)
+- `requirements.txt` (for Vercel's Python runtime)
+
+On Vercel:
+
+1. Import the Git repo as a new project
+2. Set Environment Variables (at minimum):
+   - `OPENAI_API_KEY` (LLM + reranker)
+   - `E2B_API_KEY` (LaTeX extraction sandbox; required unless you run local TeX mode)
+   - Optional: `OPENALEX_API_KEY`, `OPENALEX_MAILTO`, `SEMANTIC_SCHOLAR_API_KEY`
+3. Deploy
+
 ---
 
 ### Option B — HTTP API

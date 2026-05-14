@@ -1542,6 +1542,52 @@ wheels = [
 ]
 
 [[package]]
+name = "mathgent"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "arxiv" },
+    { name = "e2b-code-interpreter" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "logfire" },
+    { name = "loguru" },
+    { name = "pydantic" },
+    { name = "pydantic-ai" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "bandit" },
+    { name = "hypothesis" },
+    { name = "mypy" },
+    { name = "pip-audit" },
+    { name = "pymupdf" },
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "arxiv", specifier = ">=2.1.0" },
+    { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "e2b-code-interpreter", specifier = ">=2.5.0" },
+    { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.0.0" },
+    { name = "logfire", specifier = ">=4.0.0" },
+    { name = "loguru", specifier = ">=0.7.2" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.15.0" },
+    { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.8.0" },
+    { name = "pydantic", specifier = ">=2.9.0" },
+    { name = "pydantic-ai", specifier = ">=0.0.18" },
+    { name = "pymupdf", marker = "extra == 'dev'", specifier = ">=1.24.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.11.0" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "mcp"
 version = "1.27.0"
 source = { registry = "https://pypi.org/simple" }
