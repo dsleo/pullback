@@ -313,6 +313,8 @@ function renderPapers() {
   const filterSet = activeQueryFilter ? (queryToIds[activeQueryFilter] || new Set()) : null;
   const sorted = Object.values(paperData)
     .filter(p => !filterSet || filterSet.has(p.id))
+    // In normal mode, show only matched papers (hide grey/in-progress/no-match cards).
+    .filter(p => advancedMode || p.state === 'matched')
     .sort((a, b) => sortKey(a) - sortKey(b));
 
   Array.from(container.children).forEach(el => {
@@ -344,7 +346,12 @@ function renderPapers() {
     if (p.citedBy != null) metaParts.push(`${p.citedBy.toLocaleString()} citations`);
     const metaHtml = metaParts.length ? `<div class="card-meta">${metaParts.join(' · ')}</div>` : '';
     const labelHtml = p.label ? `<span class="theorem-label">${esc(p.label)}</span>` : '';
-    const subHtml = p.substatus ? `<div class="card-substatus">${esc(p.substatus)}</div>` : '';
+    const showStatus = advancedMode && p.state && p.state !== 'matched';
+    const statusTxt = showStatus ? p.state : '';
+    const subText = p.substatus
+      ? (showStatus ? `${statusTxt} · ${p.substatus}` : p.substatus)
+      : (showStatus ? statusTxt : '');
+    const subHtml = subText ? `<div class="card-substatus">${esc(subText)}</div>` : '';
     const attrHtml = (advancedMode && p.discoveredBy && p.discoveredBy.length)
       ? `<div class="card-attr">${p.discoveredBy.map(q => {
           const idx = (window._queryList || []).indexOf(q);

@@ -25,10 +25,12 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
         *,
         providers: Sequence[tuple[str, PaperDiscoveryClient]],
         provider_timeout_seconds: float = 8.0,
+        raw_query_provider_timeout_seconds: dict[str, float] | None = None,
         raw_only_providers: frozenset[str] = frozenset(),
     ) -> None:
         self._providers = list(providers)
         self._provider_timeout_seconds = max(0.0, provider_timeout_seconds)
+        self._raw_query_provider_timeout_seconds = dict(raw_query_provider_timeout_seconds or {})
         self._raw_only_providers = raw_only_providers
         # timeout tracking: cumulative count and consecutive streak per provider
         self._timeout_counts: dict[str, int] = {name: 0 for name, _ in self._providers}
@@ -40,7 +42,15 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
         """Cumulative per-provider timeout counts since this client was created."""
         return dict(self._timeout_counts)
 
-    async def _fetch_one(self, name: str, provider: PaperDiscoveryClient, query: str, max_results: int) -> list[str]:
+    async def _fetch_one(
+        self,
+        name: str,
+        provider: PaperDiscoveryClient,
+        query: str,
+        max_results: int,
+        *,
+        timeout_seconds: float,
+    ) -> list[str]:
         # Circuit breaker: skip provider if it has too many consecutive timeouts
         if self._consecutive_timeouts.get(name, 0) >= _CIRCUIT_BREAKER_THRESHOLD:
             log.warning(
@@ -50,10 +60,10 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
             return []
 
         try:
-            if self._provider_timeout_seconds > 0:
+            if timeout_seconds > 0:
                 ids = await asyncio.wait_for(
                     provider.discover_arxiv_ids(query, max_results),
-                    timeout=self._provider_timeout_seconds,
+                    timeout=timeout_seconds,
                 )
             else:
                 ids = await provider.discover_arxiv_ids(query, max_results)
@@ -63,7 +73,7 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
             self._consecutive_timeouts[name] = streak
             log.warning(
                 "provider.timeout provider={} timeout_s={:.1f} streak={} total_timeouts={}",
-                name, self._provider_timeout_seconds, streak, self._timeout_counts[name],
+                name, timeout_seconds, streak, self._timeout_counts[name],
             )
             if streak >= _DEGRADED_THRESHOLD:
                 log.warning(
@@ -90,8 +100,21 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
 
         # Create tasks for all providers and run in parallel
         # Raw-only providers (e.g. semantic_scholar) are skipped for reformulated query variants
+        def _timeout_for(name: str) -> float:
+            if is_raw_query and name in self._raw_query_provider_timeout_seconds:
+                return max(0.0, float(self._raw_query_provider_timeout_seconds[name]))
+            return self._provider_timeout_seconds
+
         tasks: list[asyncio.Task] = [
-            asyncio.create_task(self._fetch_one(name, provider, query, max_results))
+            asyncio.create_task(
+                self._fetch_one(
+                    name,
+                    provider,
+                    query,
+                    max_results,
+                    timeout_seconds=_timeout_for(name),
+                )
+            )
             for name, provider in self._providers
             if is_raw_query or name not in self._raw_only_providers
         ]

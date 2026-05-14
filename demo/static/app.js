@@ -13,12 +13,53 @@ const queryToIds = {};   // query string → Set of arxiv_ids
 const idAliases  = {};   // bare (version-stripped) id → canonical id in paperData
 let discovered = 0, reviewed = 0, matched = 0, queriesCount = 0;
 
+// If metadata is delayed (e.g. arXiv 429), worker events can arrive before cards exist.
+// Buffer them by arXiv id and apply once the card gets created.
+const pendingById = {};  // arxiv_id -> { worker_start?, plan_complete?, execute_complete? }
+
 // Strategy labels in planner prompt order (index 0 = original, 1-N = LLM variants)
 const STRATEGY_LABELS = ['original', 'noun-phrase', 'synonym', 'abstraction', 'entity', 'keyword', 'subject'];
 
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function _pending(id) {
+  if (!pendingById[id]) pendingById[id] = {};
+  return pendingById[id];
+}
+
+function applyPendingForId(id) {
+  const p = paperData[id];
+  const pend = pendingById[id];
+  if (!p || !pend) return;
+
+  if (pend.worker_start) {
+    p.state = 'working';
+    p.substatus = 'fetching…';
+  }
+
+  if (pend.plan_complete) {
+    const ev = pend.plan_complete;
+    p.substatus = ev.reason === 'no_headers'
+      ? 'no theorem headers found'
+      : `${ev.header_count} header${ev.header_count !== 1 ? 's' : ''} found`;
+  }
+
+  if (pend.execute_complete) {
+    const ev = pend.execute_complete;
+    reviewed++;
+    p.score    = ev.score;
+    p.snippet  = ev.snippet;
+    p.header   = ev.header;
+    p.label    = ev.label || null;
+    p.substatus = null;
+    p.state    = ev.matched ? 'matched' : 'no-match';
+    if (ev.matched) matched++;
+  }
+
+  delete pendingById[id];
 }
 
 function sortKey(p) {
@@ -53,6 +94,8 @@ function renderPapers() {
 
   const sorted = Object.values(paperData)
     .filter(p => !filterSet || filterSet.has(p.id))
+    // In normal mode, show only matched papers (hide grey/in-progress/no-match cards).
+    .filter(p => advancedMode || p.state === 'matched')
     .sort((a, b) => sortKey(a) - sortKey(b));
 
   // Remove cards no longer in filtered view
@@ -95,8 +138,12 @@ function renderPapers() {
     const labelHtml = p.label
       ? `<span class="theorem-label">${esc(p.label)}</span>` : '';
 
-    const subHtml = p.substatus
-      ? `<div class="card-substatus">${esc(p.substatus)}</div>` : '';
+    const showStatus = advancedMode && p.state && p.state !== 'matched';
+    const statusTxt = showStatus ? p.state : '';
+    const subText = p.substatus
+      ? (showStatus ? `${statusTxt} · ${p.substatus}` : p.substatus)
+      : (showStatus ? statusTxt : '');
+    const subHtml = subText ? `<div class="card-substatus">${esc(subText)}</div>` : '';
 
     // Attribution chips (advanced mode only)
     const attrHtml = (advancedMode && p.discoveredBy && p.discoveredBy.length)
@@ -240,18 +287,16 @@ function handle(ev) {
       }
       ev.arxiv_ids.forEach(id => {
         const meta = metaById[id] || null;
-        if (!meta || !meta.title || !meta.authors || !meta.authors.length) {
-          return;
-        }
         queryToIds[ev.query].add(id);
         if (!paperData[id]) {
           const entry = { id, title: null, authors: null, year: null, citedBy: null,
                           score: null, state: 'pending', snippet: null, header: null,
                           label: null, substatus: null, discoveredBy: [ev.query] };
-          entry.title = meta.title || null;
-          entry.authors = meta.authors || null;
-          if (meta.year != null) entry.year = meta.year;
-          if (meta.cited_by_count != null) entry.citedBy = meta.cited_by_count;
+          // Prefer real metadata when available; otherwise still create the card.
+          entry.title = (meta && meta.title) ? meta.title : `arXiv:${id}`;
+          entry.authors = (meta && meta.authors) ? meta.authors : [];
+          if (meta && meta.year != null) entry.year = meta.year;
+          if (meta && meta.cited_by_count != null) entry.citedBy = meta.cited_by_count;
           paperData[id] = entry;
           // Register bare-ID alias for metadata_update lookup (metadata fetcher
           // normalizes IDs by stripping version suffix).
@@ -261,6 +306,7 @@ function handle(ev) {
         } else if (!paperData[id].discoveredBy.includes(ev.query)) {
           paperData[id].discoveredBy.push(ev.query);
         }
+        applyPendingForId(id);
       });
       renderStats(); renderPapers();
     }
@@ -304,6 +350,7 @@ function handle(ev) {
         if (pm.year != null)           target.year    = pm.year;
         if (pm.cited_by_count != null) target.citedBy = pm.cited_by_count;
       }
+      applyPendingForId(canonId);
     });
     renderStats();
     renderPapers();
@@ -311,12 +358,15 @@ function handle(ev) {
 
   else if (ev.type === 'worker_start') {
     const p = paperData[ev.arxiv_id];
-    if (p) { p.state = 'working'; p.substatus = 'fetching…'; renderPapers(); }
+    if (!p) { _pending(ev.arxiv_id).worker_start = ev; return; }
+    p.state = 'working';
+    p.substatus = 'fetching…';
+    renderPapers();
   }
 
   else if (ev.type === 'plan_complete') {
     const p = paperData[ev.arxiv_id];
-    if (!p) return;
+    if (!p) { _pending(ev.arxiv_id).plan_complete = ev; return; }
     p.substatus = ev.reason === 'no_headers'
       ? 'no theorem headers found'
       : `${ev.header_count} header${ev.header_count !== 1 ? 's' : ''} found`;
@@ -325,7 +375,7 @@ function handle(ev) {
 
   else if (ev.type === 'execute_complete') {
     const p = paperData[ev.arxiv_id];
-    if (!p) return;
+    if (!p) { _pending(ev.arxiv_id).execute_complete = ev; return; }
     reviewed++;
     p.score    = ev.score;
     p.snippet  = ev.snippet;

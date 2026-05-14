@@ -53,6 +53,8 @@ function renderPapers() {
 
   const sorted = Object.values(paperData)
     .filter(p => !filterSet || filterSet.has(p.id))
+    // In normal mode, show only matched papers (hide grey/in-progress/no-match cards).
+    .filter(p => advancedMode || p.state === 'matched')
     .sort((a, b) => sortKey(a) - sortKey(b));
 
   // Remove cards no longer in filtered view
@@ -95,8 +97,12 @@ function renderPapers() {
     const labelHtml = p.label
       ? `<span class="theorem-label">${esc(p.label)}</span>` : '';
 
-    const subHtml = p.substatus
-      ? `<div class="card-substatus">${esc(p.substatus)}</div>` : '';
+    const showStatus = advancedMode && p.state && p.state !== 'matched';
+    const statusTxt = showStatus ? p.state : '';
+    const subText = p.substatus
+      ? (showStatus ? `${statusTxt} · ${p.substatus}` : p.substatus)
+      : (showStatus ? statusTxt : '');
+    const subHtml = subText ? `<div class="card-substatus">${esc(subText)}</div>` : '';
 
     // Attribution chips (advanced mode only)
     const attrHtml = (advancedMode && p.discoveredBy && p.discoveredBy.length)

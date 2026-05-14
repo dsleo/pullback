@@ -107,7 +107,9 @@ def _build_discovery_layer(settings: AppSettings) -> tuple[PaperDiscoveryClient,
             providers.append(
                 (
                     "arxiv_api",
-                    ArxivAPIDiscoveryClient(timeout_seconds=settings.discovery.timeout_seconds),
+                    # Give the provider itself a generous timeout; the chain will
+                    # still cap variant queries via `provider_timeout_seconds`.
+                    ArxivAPIDiscoveryClient(timeout_seconds=max(settings.discovery.timeout_seconds, 45.0)),
                 )
             )
             continue
@@ -139,9 +141,15 @@ def _build_discovery_layer(settings: AppSettings) -> tuple[PaperDiscoveryClient,
         log.warning("discovery.provider_unknown provider={}", name)
 
     provider_timeout_seconds = settings.discovery.provider_timeout_seconds
+    # Longer timeout for the *original* (raw) query on arXiv export API, since it
+    # is often the most valuable source and can be slow/rate-limited.
+    raw_query_provider_timeout_seconds = {
+        "arxiv_api": max(provider_timeout_seconds, 45.0),
+    }
     chain = ChainedDiscoveryClient(
         providers=providers,
         provider_timeout_seconds=provider_timeout_seconds,
+        raw_query_provider_timeout_seconds=raw_query_provider_timeout_seconds,
         raw_only_providers=frozenset(raw_only_provider_names),
     )
     active = [name for name, _ in providers]

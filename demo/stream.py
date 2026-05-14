@@ -34,6 +34,9 @@ async def _run_stream(
     _orig_query_attempts = orch._query_attempts
 
     async def _patched_query_attempts(q: str) -> list[str]:
+        # Emit the original query immediately so the UI can show the seed query
+        # even if the LLM planner call is slow.
+        await push({"type": "queries_planned", "queries": [q]})
         attempts = await _orig_query_attempts(q)
         ordered_attempts: list[str] = []
         seen: set[str] = set()
@@ -53,6 +56,9 @@ async def _run_stream(
     async def on_search_start(*, query, max_results, **_):
         await push({"type": "query_start", "query": query,
                     "max_results": max_results, "strictness": strictness})
+
+    async def on_discovery_start(*, query, max_results, **_):
+        await push({"type": "discovery_start", "query": query, "max_results": max_results})
 
     # Track metadata fetches — awaited before the stream sentinel
     fetched_metadata_ids: set[str] = set()
@@ -91,7 +97,7 @@ async def _run_stream(
         except Exception:
             pass  # metadata is best-effort
 
-    async def on_discovery_done(*, query, arxiv_ids, metadata=None, **_):
+    async def on_discovery_done(*, query, arxiv_ids, metadata=None, provider_timeouts=None, **_):
         ids = list(arxiv_ids)
         papers_by_id: dict[str, dict] = {}
 
@@ -136,7 +142,15 @@ async def _run_stream(
                 pass
 
         papers = [papers_by_id[aid] for aid in ids if aid in papers_by_id]
-        await push({"type": "discovery", "query": query, "arxiv_ids": ids, "papers": papers})
+        await push(
+            {
+                "type": "discovery",
+                "query": query,
+                "arxiv_ids": ids,
+                "papers": papers,
+                "provider_timeouts": dict(provider_timeouts or {}),
+            }
+        )
         if papers:
             await push({"type": "metadata_update", "query": query, "papers": papers})
 
@@ -146,7 +160,7 @@ async def _run_stream(
             _metadata_tasks.append(t)
 
     async def on_worker_start(*, state, **_):
-        await push({"type": "worker_start", "arxiv_id": state.arxiv_id})
+        await push({"type": "worker_start", "query": state.query, "arxiv_id": state.arxiv_id})
 
     async def on_worker_done(*, state, result, **_):
         m = result.match
@@ -154,11 +168,11 @@ async def _run_stream(
             await push({"type": "execute_complete", "arxiv_id": state.arxiv_id,
                         "matched": True, "score": m.score,
                         "snippet": m.snippet, "header": m.header_line,
-                        "label": m.label})
+                        "label": m.label, "query": state.query})
         else:
             await push({"type": "execute_complete", "arxiv_id": state.arxiv_id,
                         "matched": False, "score": m.score if m else 0.0,
-                        "snippet": None, "header": None, "label": None})
+                        "snippet": None, "header": None, "label": None, "query": state.query})
 
     async def on_search_done(*, results, matched, latency_s, **_):
         if _metadata_tasks:
@@ -168,6 +182,7 @@ async def _run_stream(
         await queue.put(None)
 
     orch.on("search_start",   on_search_start)
+    orch.on("discovery_start", on_discovery_start)
     orch.on("discovery_done", on_discovery_done)
     orch.on("worker_start",   on_worker_start)
     orch.on("worker_done",    on_worker_done)
