@@ -16,9 +16,22 @@ from .routes import router
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
     try:
-        setup_observability()
-        settings = load_settings()
-        app.state.settings = settings
+        try:
+            setup_observability()
+        except Exception as e:
+            import sys
+            print(f"Warning: observability setup failed: {e}", file=sys.stderr)
+        try:
+            settings = load_settings()
+            app.state.settings = settings
+        except Exception as e:
+            # On serverless, settings loading may fail
+            import sys
+            print(f"Warning: settings loading failed: {e}", file=sys.stderr)
+            app.state.settings = None
+            app.state.orchestrator = None
+            yield
+            return
         try:
             orchestrator = build_orchestrator(settings)
             app.state.orchestrator = orchestrator
@@ -34,9 +47,9 @@ async def _lifespan(app: FastAPI):
             if app.state.orchestrator and hasattr(app.state.orchestrator, "close"):
                 app.state.orchestrator.close()
     except Exception as e:
-        # If settings can't load, app is non-functional but should at least start
+        # Catch any remaining exceptions to ensure app always yields
         import sys
-        print(f"Warning: app initialization failed: {e}", file=sys.stderr)
+        print(f"Warning: unexpected error in lifespan: {e}", file=sys.stderr)
         yield
 
 

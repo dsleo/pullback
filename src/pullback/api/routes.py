@@ -29,6 +29,11 @@ async def search_lemmas(
     request: SearchRequest,
     orchestrator: LibrarianOrchestrator = Depends(get_orchestrator),
 ) -> SearchResponse:
+    if orchestrator is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable: orchestrator not initialized"
+        )
     log.info(
         "search.request query={} max_results={} strictness={}",
         request.query,

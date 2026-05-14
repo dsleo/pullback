@@ -69,7 +69,7 @@ def _default_config() -> dict[str, Any]:
     """Return a minimal default config for serverless environments where config.json is not available."""
     return {
         "retrieval": {
-            "discovery_providers": [],
+            "discovery_providers": ["arxiv_api"],
             "top_k_headers": 10,
             "max_query_attempts": 1,
             "max_results": 20,
@@ -98,6 +98,18 @@ def _default_config() -> dict[str, Any]:
         "sandbox": {
             "local_tex_dir": None,
             "type": "e2b",
+        },
+        "observability": {
+            "log_level": "INFO",
+            "log_json": False,
+            "log_file_enabled": False,
+            "log_file": "logs/pullback.log",
+            "log_file_rotation": "100 MB",
+            "log_file_retention": "14 days",
+            "enable_logfire": False,
+            "logfire_send": False,
+            "service_name": "pullback",
+            "pydanticai_instrument": False,
         },
         "features": {
             "agentic": False,

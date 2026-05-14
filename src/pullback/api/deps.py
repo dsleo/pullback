@@ -237,9 +237,13 @@ def build_orchestrator(settings: AppSettings | None = None) -> LibrarianOrchestr
     )
 
 
-def get_orchestrator(request: Request) -> LibrarianOrchestrator:
+def get_orchestrator(request: Request) -> LibrarianOrchestrator | None:
     orchestrator = getattr(request.app.state, "orchestrator", None)
     if orchestrator is None:
-        orchestrator = build_orchestrator(getattr(request.app.state, "settings", None))
-        request.app.state.orchestrator = orchestrator
+        try:
+            orchestrator = build_orchestrator(getattr(request.app.state, "settings", None))
+            request.app.state.orchestrator = orchestrator
+        except Exception as e:
+            log.error("orchestrator.build_failed_on_request error={}", e)
+            return None
     return orchestrator
