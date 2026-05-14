@@ -219,15 +219,13 @@ header span {
   font-family: var(--f-mono); font-size: .6rem; letter-spacing: .1em;
   text-transform: uppercase; color: var(--c-gold-mid); margin-bottom: 8px;
 }
-.rendered-snippet {
-  display: block; max-width: 100%; border-radius: 2px;
-  filter: invert(0.88) sepia(0.08);
-}
-.snippet-fallback {
+.snippet-raw {
   font-family: var(--f-mono); font-size: .74rem; font-weight: 300;
   color: var(--c-fg); white-space: pre-wrap; line-height: 1.65;
   margin: 0; padding: 0;
 }
+
+.card-title.placeholder { color: var(--c-fg-2); }
 
 /* ── attribution chips ───────────────────────────────────────────── */
 .card-attr { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }

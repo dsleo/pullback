@@ -217,6 +217,9 @@ class LibrarianOrchestrator:
                         return ids
 
                     eager_task = asyncio.create_task(_eager_discover_and_forge())
+                    # Ensure the eager raw-query discovery task gets a chance to start
+                    # even when the query planner returns synchronously (e.g. cache hit).
+                    await asyncio.sleep(0)
 
                 planned_attempts = await self._query_attempts(seed_query)
                 round_attempts: list[str] = []

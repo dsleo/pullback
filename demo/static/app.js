@@ -5,6 +5,8 @@ let es = null;
 let advancedMode = false;
 let activeQueryFilter = null;
 let sortMode = 'score';  // 'score' | 'year'
+let _debounceTimer = null;
+let _lastIssuedQuery = '';
 
 const paperData  = {};
 const queryToIds = {};   // query string → Set of arxiv_ids
@@ -17,18 +19,6 @@ const STRATEGY_LABELS = ['original', 'noun-phrase', 'synonym', 'abstraction', 'e
 function esc(s) {
   if (!s) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-function extractSearchText(latex) {
-  if (!latex) return '';
-  let t = latex
-    .replace(/\\(?:begin|end)\{[^}]+\}(?:\[[^\]]*\])?/g, ' ')
-    .replace(/\\[a-zA-Z]+\{([^{}]*)\}/g, ' $1 ')
-    .replace(/\\[a-zA-Z@]+\*?/g, ' ')
-    .replace(/\$+|\\\[|\\\]|\\\(|\\\)/g, ' ')
-    .replace(/[{}()\[\]_^~&%]/g, ' ');
-  const words = t.split(/\s+/).filter(w => w.length > 3 && /^[a-zA-Z]+$/.test(w));
-  return words.slice(0, 6).join(' ');
 }
 
 function sortKey(p) {
@@ -90,7 +80,7 @@ function renderPapers() {
 
     const titleHtml = p.title
       ? `<div class="card-title">${esc(p.title)}</div>`
-      : `<div class="card-arxiv-id">${esc(p.id)}</div>`;
+      : `<div class="card-title placeholder">Fetching metadata…</div><div class="card-arxiv-id">${esc(p.id)}</div>`;
 
     const authorsHtml = (p.authors && p.authors.length)
       ? `<div class="card-authors">${esc(p.authors.join(', '))}</div>`
@@ -123,19 +113,11 @@ function renderPapers() {
       ? `<span class="card-chevron${isOpen ? ' open' : ''}" id="chev-${p.id}">▶</span>`
       : `<span></span>`;
 
-    const searchText = hasBody ? extractSearchText(p.snippet) : '';
-    const imgSrc = searchText
-      ? `/pdf-snippet/${encodeURIComponent(p.id)}?q=${encodeURIComponent(searchText)}`
-      : '';
     const bodyHtml = hasBody
       ? `<div class="card-body" ${isOpen ? '' : 'style="display:none"'}>
            <div class="snippet-box">` +
              (p.header ? `<div class="header-label">${esc(p.header)}</div>` : '') +
-             (imgSrc
-               ? `<img class="rendered-snippet" src="${imgSrc}" alt="theorem snippet"` +
-                 ` onerror="this.style.display='none';this.nextElementSibling.style.display='block'">` +
-                 `<pre class="snippet-fallback" style="display:none">${esc(p.snippet)}</pre>`
-               : `<pre class="snippet-fallback">${esc(p.snippet)}</pre>`) +
+             `<pre class="snippet-raw">${esc(p.snippet)}</pre>` +
          `</div></div>`
       : '';
 
@@ -245,12 +227,23 @@ function handle(ev) {
       document.getElementById('results-section').style.display = '';
       document.getElementById('adv-btn').style.display = '';
       if (!queryToIds[ev.query]) queryToIds[ev.query] = new Set();
+      const metaById = {};
+      if (ev.papers && Array.isArray(ev.papers)) {
+        ev.papers.forEach(pm => { if (pm && pm.arxiv_id) metaById[pm.arxiv_id] = pm; });
+      }
       ev.arxiv_ids.forEach(id => {
         queryToIds[ev.query].add(id);
         if (!paperData[id]) {
           const entry = { id, title: null, authors: null, year: null, citedBy: null,
                           score: null, state: 'pending', snippet: null, header: null,
                           label: null, substatus: null, discoveredBy: [ev.query] };
+          const meta = metaById[id] || null;
+          if (meta) {
+            entry.title = meta.title || null;
+            entry.authors = meta.authors || null;
+            if (meta.year != null) entry.year = meta.year;
+            if (meta.cited_by_count != null) entry.citedBy = meta.cited_by_count;
+          }
           paperData[id] = entry;
           // Register bare-ID alias for metadata_update lookup (metadata fetcher
           // normalizes IDs by stripping version suffix).
@@ -344,6 +337,7 @@ function startSearch() {
 
   const query = document.getElementById('query').value.trim();
   if (!query) { document.getElementById('search-btn').disabled = false; return; }
+  _lastIssuedQuery = query;
 
   // Show pipeline strip immediately — don't wait for SSE
   window._queryList = [query];
@@ -362,8 +356,27 @@ function startSearch() {
   };
 }
 
+function scheduleLiveSearch() {
+  const query = document.getElementById('query').value.trim();
+  if (!query) {
+    if (_debounceTimer) { clearTimeout(_debounceTimer); _debounceTimer = null; }
+    if (es) { es.close(); es = null; }
+    _lastIssuedQuery = '';
+    document.getElementById('search-btn').disabled = false;
+    return;
+  }
+  if (query === _lastIssuedQuery) return;
+  if (_debounceTimer) clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(() => {
+    _debounceTimer = null;
+    if (document.getElementById('query').value.trim() !== query) return;
+    startSearch();
+  }, 450);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('query').addEventListener('keydown', e => {
     if (e.key === 'Enter') startSearch();
   });
+  document.getElementById('query').addEventListener('input', () => scheduleLiveSearch());
 });

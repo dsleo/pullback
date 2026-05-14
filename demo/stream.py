@@ -78,31 +78,46 @@ async def _run_stream(
             pass  # metadata is best-effort
 
     async def on_discovery_done(*, query, arxiv_ids, metadata=None, **_):
-        await push({"type": "discovery", "query": query, "arxiv_ids": list(arxiv_ids)})
+        ids = list(arxiv_ids)
+        papers_by_id: dict[str, dict] = {}
+
         # Use metadata the provider already fetched (e.g. OpenAlex returns titles inline).
         if metadata:
-            papers = [
-                {
+            for aid, m in metadata.items():
+                if not getattr(m, "title", None):
+                    continue
+                papers_by_id[aid] = {
                     "arxiv_id": aid,
                     "title": m.title,
                     "authors": list(m.authors or []),
                     "year": m.year,
                     "cited_by_count": m.cited_by_count,
                 }
-                for aid, m in metadata.items()
-                if m.title
-            ]
-            if papers:
-                await push({"type": "metadata_update", "papers": papers})
-            # Only mark as fully fetched if we have authors too; papers with title but
-            # no authors still go to the arXiv fallback to get complete author data.
-            fetched_metadata_ids.update(
-                aid for aid, m in metadata.items() if m.title and m.authors
+                # Only mark as complete when we have the full visible tuple.
+                if m.title and m.authors and m.year:
+                    fetched_metadata_ids.add(aid)
+
+        # Kick off arXiv metadata in parallel (best-effort). The UI should not
+        # block on this; it will update cards as metadata arrives.
+        needs_fetch = [
+            aid
+            for aid in ids
+            if aid not in fetched_metadata_ids
+            and (
+                aid not in papers_by_id
+                or not papers_by_id[aid].get("authors")
+                or not papers_by_id[aid].get("year")
             )
-        # Fall back to arXiv API for any IDs the providers didn't supply metadata for.
-        remaining = [aid for aid in arxiv_ids if aid not in fetched_metadata_ids]
-        if remaining:
-            t = asyncio.create_task(_fetch_and_push_metadata(remaining))
+        ]
+
+        papers = [papers_by_id[aid] for aid in ids if aid in papers_by_id]
+        await push({"type": "discovery", "query": query, "arxiv_ids": ids, "papers": papers})
+        if papers:
+            await push({"type": "metadata_update", "papers": papers})
+
+        # Fall back to background metadata fetch for anything still missing.
+        if needs_fetch:
+            t = asyncio.create_task(_fetch_and_push_metadata(needs_fetch))
             _metadata_tasks.append(t)
 
     async def on_worker_start(*, state, **_):
