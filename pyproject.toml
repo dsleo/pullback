@@ -13,6 +13,7 @@ dependencies = [
   "arxiv>=2.1.0",
   "loguru>=0.7.2",
   "logfire>=4.0.0",
+  "numpy>=1.24.0",
 ]
 
 [project.optional-dependencies]
