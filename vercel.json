@@ -5,51 +5,5 @@
     "app.py": {
       "runtime": "python3.12"
     }
-  },
-  "env": {
-    "PULLBACK_DISCOVERY_PROVIDERS": {
-      "description": "Comma-separated list of discovery providers (default: arxiv_api). Examples: openalex,zbmath_open,arxiv_api,semantic_scholar",
-      "required": false
-    },
-    "OPENAI_API_KEY": {
-      "description": "Required for OpenAI-based query planning and embeddings. Get from https://platform.openai.com/api-keys",
-      "required": false
-    },
-    "E2B_API_KEY": {
-      "description": "Required for fetching arXiv LaTeX sources. Get from https://e2b.dev",
-      "required": false
-    },
-    "OPENALEX_API_KEY": {
-      "description": "Optional: for higher rate limits on OpenAlex discovery",
-      "required": false
-    },
-    "OPENALEX_MAILTO": {
-      "description": "Optional: your email for OpenAlex polite-pool access",
-      "required": false
-    },
-    "OPENROUTER_API_KEY": {
-      "description": "Optional: for LLM-based discovery via OpenRouter",
-      "required": false
-    },
-    "PULLBACK_LIBRARIAN_MODEL": {
-      "description": "LLM model for query planning. Examples: openai/gpt-4o-mini, anthropic/claude-3-haiku. Set to 'test' to disable LLM calls.",
-      "required": false
-    },
-    "PULLBACK_AGENTIC": {
-      "description": "Enable agentic query replanning (0 or 1)",
-      "required": false
-    },
-    "PULLBACK_TIMEOUT_SECONDS": {
-      "description": "Timeout for discovery and metadata fetching in seconds",
-      "required": false
-    },
-    "PULLBACK_RERANKER": {
-      "description": "Reranking strategy: token-overlap (default), bge, colbert, openrouter_model",
-      "required": false
-    },
-    "PULLBACK_LOG_LEVEL": {
-      "description": "Log level: DEBUG, INFO (default), WARNING, ERROR",
-      "required": false
-    }
   }
 }
