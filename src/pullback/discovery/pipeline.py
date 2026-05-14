@@ -105,8 +105,42 @@ class ChainedDiscoveryClient(PaperDiscoveryClient):
             task: name for task, (name, _) in zip(tasks, active_providers)
         }
 
-        # Wait for ALL tasks to complete
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # In degraded network conditions, waiting for *all* providers can delay
+        # first results. Prefer returning early once we have enough IDs.
+        results_by_task: dict[asyncio.Task, list[str] | Exception] = {}
+        pending: set[asyncio.Task] = set(tasks)
+        while pending:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for t in done:
+                try:
+                    results_by_task[t] = t.result()
+                except Exception as exc:  # pragma: no cover
+                    results_by_task[t] = exc
+            # Early exit if we already have enough IDs from completed providers
+            # and we're not waiting on raw-only providers.
+            if len(results_by_task) == len(tasks):
+                break
+            # Build a quick merged count from finished tasks only
+            seen_tmp: set[str] = set()
+            merged_count = 0
+            for tt, ids in results_by_task.items():
+                if isinstance(ids, Exception) or not ids:
+                    continue
+                for arxiv_id in ids:
+                    if arxiv_id in seen_tmp:
+                        continue
+                    seen_tmp.add(arxiv_id)
+                    merged_count += 1
+                    if merged_count >= max_results:
+                        break
+                if merged_count >= max_results:
+                    break
+            if merged_count >= max_results:
+                for t in pending:
+                    t.cancel()
+                break
+
+        results = [results_by_task.get(t, []) for t in tasks]
 
         seen: set[str] = set()
         merged: list[str] = []
