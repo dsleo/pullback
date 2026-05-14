@@ -1,4 +1,4 @@
-"""Vercel entrypoint for the mathgent demo (FastAPI + SSE).
+"""Vercel entrypoint for the Pullback demo (FastAPI + SSE).
 
 Vercel will detect a FastAPI instance named `app` in `app.py`.
 
@@ -18,15 +18,15 @@ from loguru import logger
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from demo.stream import _run_stream
-from mathgent.api.deps import build_orchestrator
-from mathgent.settings import load_settings
+from pullback.api.deps import build_orchestrator
+from pullback.settings import load_settings
 
 _settings = load_settings()
 _MAX_RESULTS = _settings.librarian.max_results
 
 _PUBLIC_DIR = Path(__file__).parent / "public"
 
-app = FastAPI(title="mathgent demo")
+app = FastAPI(title="The Pullback - Theorem Search")
 
 
 @app.get("/", include_in_schema=False)
