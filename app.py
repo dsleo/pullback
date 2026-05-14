@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import sys
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, StreamingResponse
 from loguru import logger
+
+sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from demo.stream import _run_stream
 from mathgent.api.deps import build_orchestrator
@@ -29,6 +32,16 @@ app = FastAPI(title="mathgent demo")
 @app.get("/", include_in_schema=False)
 async def index() -> FileResponse:
     return FileResponse(_PUBLIC_DIR / "index.html")
+
+
+@app.get("/app.js", include_in_schema=False)
+async def app_js() -> FileResponse:
+    return FileResponse(_PUBLIC_DIR / "app.js")
+
+
+@app.get("/style.css", include_in_schema=False)
+async def style_css() -> FileResponse:
+    return FileResponse(_PUBLIC_DIR / "style.css")
 
 
 @app.get("/stream")
@@ -49,4 +62,3 @@ async def stream(
             "Connection": "keep-alive",
         },
     )
-
