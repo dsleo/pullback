@@ -160,6 +160,8 @@ def _apply_env_overrides(cfg: dict[str, Any]) -> None:
         cfg["execution"]["concurrency"] = int(concurrency)
     if timeout := os.getenv("PULLBACK_TIMEOUT_SECONDS"):
         cfg["execution"]["timeout_seconds"] = float(timeout)
+    if provider_timeout := os.getenv("PULLBACK_PROVIDER_TIMEOUT_SECONDS"):
+        cfg["execution"]["provider_timeout_seconds"] = float(provider_timeout)
     if replan := os.getenv("PULLBACK_MAX_REPLAN_ROUNDS"):
         cfg["execution"]["max_replan_rounds"] = int(replan)
 

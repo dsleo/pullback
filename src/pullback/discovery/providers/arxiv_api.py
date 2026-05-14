@@ -12,7 +12,10 @@ from ..arxiv.ids import dedupe_preserve, extract_arxiv_id_from_text
 from ..base import DiscoveryAccessError, PaperDiscoveryClient
 
 log = get_logger("discovery.arxiv_api")
-ARXIV_API_URL = "https://export.arxiv.org/api/query"
+_ARXIV_API_URLS = (
+    "https://export.arxiv.org/api/query",
+    "https://arxiv.org/api/query",
+)
 ARXIV_NS = {"a": "http://www.w3.org/2005/Atom"}
 
 
@@ -58,21 +61,32 @@ class ArxivAPIDiscoveryClient(PaperDiscoveryClient):
             params = self._build_params(query=cleaned, max_results=max_results)
             headers = {"User-Agent": self._user_agent}
 
-            async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
-                try:
-                    if self._timeout_seconds > 0:
-                        response = await asyncio.wait_for(
-                            client.get(ARXIV_API_URL, params=params, headers=headers),
-                            timeout=self._timeout_seconds,
-                        )
-                    else:
-                        response = await client.get(ARXIV_API_URL, params=params, headers=headers)
-                except TimeoutError as exc:
-                    raise DiscoveryAccessError(
-                        f"arXiv API request timed out after {self._timeout_seconds:.1f}s"
-                    ) from exc
-                except httpx.RequestError as exc:
-                    raise DiscoveryAccessError("arXiv API request failed") from exc
+            # Be robust: try export endpoint first, then the main endpoint.
+            last_exc: Exception | None = None
+            timeout = httpx.Timeout(self._timeout_seconds) if self._timeout_seconds > 0 else None
+            async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                for url in _ARXIV_API_URLS:
+                    try:
+                        if self._timeout_seconds > 0:
+                            response = await asyncio.wait_for(
+                                client.get(url, params=params, headers=headers),
+                                timeout=self._timeout_seconds,
+                            )
+                        else:
+                            response = await client.get(url, params=params, headers=headers)
+                        break
+                    except TimeoutError as exc:
+                        last_exc = exc
+                        continue
+                    except httpx.RequestError as exc:
+                        last_exc = exc
+                        continue
+                else:
+                    if isinstance(last_exc, TimeoutError):
+                        raise DiscoveryAccessError(
+                            f"arXiv API request timed out after {self._timeout_seconds:.1f}s"
+                        ) from last_exc
+                    raise DiscoveryAccessError("arXiv API request failed") from last_exc
 
             try:
                 response.raise_for_status()
