@@ -1,10 +1,10 @@
-"""Vercel Serverless Function entrypoint (FastAPI + SSE).
+"""Legacy Vercel entrypoint.
 
-Vercel treats Python files under `api/` as Serverless Functions. We re-export the
-FastAPI `app` from the repo root so the same codepath can run locally too.
+This file is intentionally kept for compatibility with older Vercel configs, but
+the primary deployment path is configured in `vercel.json` to build `app.py`
+directly via `@vercel/python`.
 """
 
 from __future__ import annotations
 
 from app import app  # noqa: F401
-
