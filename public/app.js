@@ -209,13 +209,20 @@ function handle(ev) {
   }
 
   else if (ev.type === 'queries_planned') {
-    window._queryList = ev.queries;
+    const mergedQueries = [];
+    const seen = new Set();
+    [ ...(window._queryList || []), ...(ev.queries || []) ].forEach(q => {
+      const key = String(q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      mergedQueries.push(q);
+    });
+    window._queryList = mergedQueries;
     const container = document.getElementById('query-badges');
-    // Replace placeholder original badge with full list
     container.innerHTML = '';
-    queriesCount = ev.queries.length;
-    ev.queries.forEach((q, i) => addQueryBadge(q, i));
-    const variantCount = ev.queries.length - 1;
+    queriesCount = window._queryList.length;
+    window._queryList.forEach((q, i) => addQueryBadge(q, i));
+    const variantCount = Math.max(0, window._queryList.length - 1);
     if (variantCount > 0) {
       updateStage(`Expanding search with ${variantCount} rephrased variant${variantCount !== 1 ? 's' : ''} in parallel…`);
     }

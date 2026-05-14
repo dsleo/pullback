@@ -35,8 +35,16 @@ async def _run_stream(
 
     async def _patched_query_attempts(q: str) -> list[str]:
         attempts = await _orig_query_attempts(q)
-        await push({"type": "queries_planned", "queries": attempts})
-        return attempts
+        ordered_attempts: list[str] = []
+        seen: set[str] = set()
+        for candidate in [q, *attempts]:
+            key = " ".join(candidate.lower().split())
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            ordered_attempts.append(candidate)
+        await push({"type": "queries_planned", "queries": ordered_attempts})
+        return ordered_attempts
 
     orch._query_attempts = _patched_query_attempts  # type: ignore[method-assign]
 
