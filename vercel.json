@@ -1,9 +1,3 @@
 {
-  "buildCommand": "uv pip install -e . && uv pip install uvicorn",
-  "framework": "python312",
-  "functions": {
-    "app.py": {
-      "runtime": "python3.12"
-    }
-  }
+  "buildCommand": "uv pip install -e ."
 }
