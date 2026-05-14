@@ -58,6 +58,17 @@ async def _run_stream(
     fetched_metadata_ids: set[str] = set()
     _metadata_tasks: list[asyncio.Task] = []
 
+    def _paper_payload(aid: str, metadata) -> dict | None:
+        if not getattr(metadata, "title", None):
+            return None
+        return {
+            "arxiv_id": aid,
+            "title": metadata.title,
+            "authors": list(metadata.authors or []),
+            "year": metadata.year,
+            "cited_by_count": metadata.cited_by_count,
+        }
+
     async def _fetch_and_push_metadata(ids: list[str]) -> None:
         if orch._metadata_fetcher is None:
             return
@@ -68,15 +79,10 @@ async def _run_stream(
             meta = await orch._metadata_fetcher(new_ids)
             if meta:
                 papers = [
-                    {
-                        "arxiv_id": aid,
-                        "title": m.title,
-                        "authors": list(m.authors or []),
-                        "year": m.year,
-                        "cited_by_count": m.cited_by_count,
-                    }
+                    payload
                     for aid, m in meta.items()
-                    if m.title
+                    for payload in [_paper_payload(aid, m)]
+                    if payload is not None
                 ]
                 if papers:
                     # Only mark as fetched if we successfully got metadata for them
@@ -92,15 +98,10 @@ async def _run_stream(
         # Use metadata the provider already fetched (e.g. OpenAlex returns titles inline).
         if metadata:
             for aid, m in metadata.items():
-                if not getattr(m, "title", None):
+                payload = _paper_payload(aid, m)
+                if payload is None:
                     continue
-                papers_by_id[aid] = {
-                    "arxiv_id": aid,
-                    "title": m.title,
-                    "authors": list(m.authors or []),
-                    "year": m.year,
-                    "cited_by_count": m.cited_by_count,
-                }
+                papers_by_id[aid] = payload
                 # Only mark as complete when we have the full visible tuple.
                 if m.title and m.authors and m.year:
                     fetched_metadata_ids.add(aid)
@@ -117,6 +118,22 @@ async def _run_stream(
                 or not papers_by_id[aid].get("year")
             )
         ]
+
+        # For the demo UI, wait briefly for missing metadata before exposing the card.
+        # This preserves the eager raw-query pipeline while avoiding long-lived
+        # "Fetching metadata..." placeholders in normal cases.
+        if needs_fetch and orch._metadata_fetcher is not None:
+            try:
+                meta = await asyncio.wait_for(orch._metadata_fetcher(needs_fetch), timeout=2.0)
+                for aid, m in meta.items():
+                    payload = _paper_payload(aid, m)
+                    if payload is None:
+                        continue
+                    papers_by_id[aid] = payload
+                    if m.title and m.authors and m.year:
+                        fetched_metadata_ids.add(aid)
+            except Exception:
+                pass
 
         papers = [papers_by_id[aid] for aid in ids if aid in papers_by_id]
         await push({"type": "discovery", "query": query, "arxiv_ids": ids, "papers": papers})
