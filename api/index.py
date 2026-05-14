@@ -7,8 +7,7 @@ from pathlib import Path
 import sys
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from loguru import logger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -21,12 +20,28 @@ from pullback.settings import load_settings
 
 _settings = load_settings()
 _MAX_RESULTS = _settings.librarian.max_results
+_PUBLIC_DIR = REPO_ROOT / "public"
 
 app = FastAPI(title="The Pullback - Theorem Search")
 
 
 @app.get("/")
-async def root() -> JSONResponse:
+async def root() -> FileResponse:
+    return FileResponse(_PUBLIC_DIR / "index.html")
+
+
+@app.get("/app.js")
+async def app_js() -> FileResponse:
+    return FileResponse(_PUBLIC_DIR / "app.js")
+
+
+@app.get("/style.css")
+async def style_css() -> FileResponse:
+    return FileResponse(_PUBLIC_DIR / "style.css")
+
+
+@app.get("/healthz")
+async def healthz() -> JSONResponse:
     return JSONResponse({"ok": True, "service": "pullback-api"})
 
 
