@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from ..settings import load_settings
 from ..observability import setup_observability
@@ -57,15 +60,33 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Pullback Lemma Search", lifespan=_lifespan)
     app.middleware("http")(request_context_middleware)
 
-    # Root endpoint
-    @app.get("/")
-    async def root():
-        return {
-            "service": "Pullback Lemma Search",
-            "version": "0.1.0",
-            "docs": "/docs",
-            "search": "/search"
-        }
+    # Find and mount static files (demo UI)
+    static_dir = Path(__file__).parent.parent.parent.parent / "demo" / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+        # Serve index.html at root
+        @app.get("/")
+        async def root():
+            index_path = static_dir / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
+            return {
+                "service": "Pullback Lemma Search",
+                "version": "0.1.0",
+                "docs": "/docs",
+                "search": "/search"
+            }
+    else:
+        # Fallback if demo directory not found
+        @app.get("/")
+        async def root():
+            return {
+                "service": "Pullback Lemma Search",
+                "version": "0.1.0",
+                "docs": "/docs",
+                "search": "/search"
+            }
 
     # Health check endpoint (doesn't require orchestrator)
     @app.get("/health")
