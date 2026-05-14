@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
@@ -24,8 +25,12 @@ _MAX_RESULTS = _settings.librarian.max_results
 app = FastAPI(title="The Pullback - Theorem Search")
 
 
-@app.get("/stream")
-async def stream(
+@app.get("/")
+async def root() -> JSONResponse:
+    return JSONResponse({"ok": True, "service": "pullback-api"})
+
+
+async def _stream_impl(
     query: str = "Banach fixed point theorem",
     strictness: float = 0.0,
 ) -> StreamingResponse:
@@ -41,3 +46,19 @@ async def stream(
             "Connection": "keep-alive",
         },
     )
+
+
+@app.get("/stream")
+async def stream(
+    query: str = "Banach fixed point theorem",
+    strictness: float = 0.0,
+) -> StreamingResponse:
+    return await _stream_impl(query=query, strictness=strictness)
+
+
+@app.get("/api/stream")
+async def api_stream(
+    query: str = "Banach fixed point theorem",
+    strictness: float = 0.0,
+) -> StreamingResponse:
+    return await _stream_impl(query=query, strictness=strictness)
