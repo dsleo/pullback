@@ -57,6 +57,16 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Pullback Lemma Search", lifespan=_lifespan)
     app.middleware("http")(request_context_middleware)
 
+    # Root endpoint
+    @app.get("/")
+    async def root():
+        return {
+            "service": "Pullback Lemma Search",
+            "version": "0.1.0",
+            "docs": "/docs",
+            "search": "/search"
+        }
+
     # Health check endpoint (doesn't require orchestrator)
     @app.get("/health")
     async def health():
