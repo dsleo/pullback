@@ -335,7 +335,7 @@ function renderPapers() {
       : '';
     const titleHtml = p.title
       ? `<div class="card-title">${esc(p.title)}</div>`
-      : `<div class="card-title placeholder">Fetching metadata...</div><div class="card-arxiv-id">${esc(p.id)}</div>`;
+      : `<div class="card-title placeholder">Loading...</div>`;
     const authorsHtml = (p.authors && p.authors.length)
       ? `<div class="card-authors">${esc(p.authors.join(', '))}</div>`
       : '';
@@ -476,18 +476,19 @@ function handle(ev) {
         ev.papers.forEach(pm => { if (pm && pm.arxiv_id) metaById[pm.arxiv_id] = pm; });
       }
       ev.arxiv_ids.forEach(id => {
+        const meta = metaById[id] || null;
+        if (!meta || !meta.title || !meta.authors || !meta.authors.length) {
+          return;
+        }
         queryToIds[ev.query].add(id);
         if (!paperData[id]) {
           const entry = { id, title: null, authors: null, year: null, citedBy: null,
                           score: null, state: 'pending', snippet: null, header: null,
                           label: null, substatus: null, discoveredBy: [ev.query] };
-          const meta = metaById[id] || null;
-          if (meta) {
-            entry.title = meta.title || null;
-            entry.authors = meta.authors || null;
-            if (meta.year != null) entry.year = meta.year;
-            if (meta.cited_by_count != null) entry.citedBy = meta.cited_by_count;
-          }
+          entry.title = meta.title || null;
+          entry.authors = meta.authors || null;
+          if (meta.year != null) entry.year = meta.year;
+          if (meta.cited_by_count != null) entry.citedBy = meta.cited_by_count;
           paperData[id] = entry;
           const bare = id.replace(/v\\d+$/, '');
           if (bare !== id) idAliases[bare] = id;
@@ -500,18 +501,43 @@ function handle(ev) {
       renderPapers();
     }
   } else if (ev.type === 'metadata_update') {
+    const q = ev.query || null;
     ev.papers.forEach(pm => {
       const key = pm.arxiv_id;
       const bare = key.replace(/v\\d+$/, '');
       const canonId = idAliases[bare] || idAliases[key] || key;
-      const target = paperData[canonId];
-      if (target) {
+      let target = paperData[canonId];
+      const hasCore = pm.title && pm.authors && pm.authors.length;
+      if (!target && hasCore) {
+        target = {
+          id: canonId,
+          title: pm.title || null,
+          authors: pm.authors || null,
+          year: pm.year ?? null,
+          citedBy: pm.cited_by_count ?? null,
+          score: null,
+          state: 'pending',
+          snippet: null,
+          header: null,
+          label: null,
+          substatus: null,
+          discoveredBy: q ? [q] : [],
+        };
+        paperData[canonId] = target;
+        if (q) {
+          if (!queryToIds[q]) queryToIds[q] = new Set();
+          queryToIds[q].add(canonId);
+        }
+        discovered++;
+      }
+      if (target && hasCore) {
         target.title = pm.title || null;
         target.authors = pm.authors || null;
         if (pm.year != null) target.year = pm.year;
         if (pm.cited_by_count != null) target.citedBy = pm.cited_by_count;
       }
     });
+    renderStats();
     renderPapers();
   } else if (ev.type === 'worker_start') {
     const p = paperData[ev.arxiv_id];

@@ -69,7 +69,7 @@ async def _run_stream(
             "cited_by_count": metadata.cited_by_count,
         }
 
-    async def _fetch_and_push_metadata(ids: list[str]) -> None:
+    async def _fetch_and_push_metadata(ids: list[str], *, query: str) -> None:
         if orch._metadata_fetcher is None:
             return
         new_ids = [aid for aid in ids if aid not in fetched_metadata_ids]
@@ -87,7 +87,7 @@ async def _run_stream(
                 if papers:
                     # Only mark as fetched if we successfully got metadata for them
                     fetched_metadata_ids.update(p["arxiv_id"] for p in papers)
-                    await push({"type": "metadata_update", "papers": papers})
+                    await push({"type": "metadata_update", "query": query, "papers": papers})
         except Exception:
             pass  # metadata is best-effort
 
@@ -138,11 +138,11 @@ async def _run_stream(
         papers = [papers_by_id[aid] for aid in ids if aid in papers_by_id]
         await push({"type": "discovery", "query": query, "arxiv_ids": ids, "papers": papers})
         if papers:
-            await push({"type": "metadata_update", "papers": papers})
+            await push({"type": "metadata_update", "query": query, "papers": papers})
 
         # Fall back to background metadata fetch for anything still missing.
         if needs_fetch:
-            t = asyncio.create_task(_fetch_and_push_metadata(needs_fetch))
+            t = asyncio.create_task(_fetch_and_push_metadata(needs_fetch, query=query))
             _metadata_tasks.append(t)
 
     async def on_worker_start(*, state, **_):
