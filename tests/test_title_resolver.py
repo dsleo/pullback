@@ -4,7 +4,7 @@ import asyncio
 def test_title_resolver_uses_abs_title_match(monkeypatch):
     import httpx
 
-    from pullback.discovery.arxiv.title_resolver import resolve_titles_to_arxiv_ids
+    from pullback.discovery.arxiv.recovery.title_resolver import resolve_titles_to_arxiv_ids
 
     # Stub arXiv search HTML results: always return a single candidate id.
     async def _fake_search_get(self, url, **kwargs):  # noqa: ANN001
@@ -24,7 +24,7 @@ def test_title_resolver_uses_abs_title_match(monkeypatch):
 def test_title_resolver_verifies_web_search_results(monkeypatch):
     import httpx
 
-    from pullback.discovery.arxiv.title_resolver import resolve_titles_to_arxiv_ids
+    from pullback.discovery.arxiv.recovery.title_resolver import resolve_titles_to_arxiv_ids
 
     class StubWebSearch:
         async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
