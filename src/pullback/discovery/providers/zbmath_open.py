@@ -19,6 +19,7 @@ import httpx
 from ...observability import get_logger, trace_span
 from ..arxiv.ids import dedupe_preserve, extract_arxiv_id_from_text
 from ..base import DiscoveryAccessError, PaperDiscoveryClient
+from ..arxiv.recovery.title_candidates import extract_title_candidates
 
 log = get_logger("discovery.zbmath_open")
 
@@ -54,6 +55,10 @@ class ZbMathOpenDiscoveryClient(PaperDiscoveryClient):
 
     def __init__(self, *, timeout_seconds: float = 12.0) -> None:
         self._timeout_seconds = timeout_seconds
+        self._last_title_candidates: list[str] = []
+
+    def title_candidates(self) -> list[str]:
+        return list(self._last_title_candidates)
 
     def _backoff_seconds(self, attempt: int) -> float:
         return min(self._BACKOFF_BASE_SECONDS * (2**attempt), 10.0)
@@ -143,6 +148,7 @@ class ZbMathOpenDiscoveryClient(PaperDiscoveryClient):
         with trace_span("discovery.zbmath_open", query=query, max_results=max_results):
             cleaned = query.strip()
             if not cleaned or max_results <= 0:
+                self._last_title_candidates = []
                 return []
 
             # Reduce to keyword tokens so zbMATH's AND-search doesn't hit 404 on
@@ -157,7 +163,14 @@ class ZbMathOpenDiscoveryClient(PaperDiscoveryClient):
 
             results = payload.get("result")
             if not isinstance(results, list):
+                self._last_title_candidates = []
                 return []
+
+            self._last_title_candidates = extract_title_candidates(
+                [r for r in results if isinstance(r, Mapping)],
+                title_key="title",
+                max_titles=max_results * 2,
+            )
 
             ids: list[str] = []
             for hit in results:
@@ -171,4 +184,3 @@ class ZbMathOpenDiscoveryClient(PaperDiscoveryClient):
             ids = dedupe_preserve(ids, max_results=max_results)
             log.info("done count={} ids={}", len(ids), ids)
             return ids
-

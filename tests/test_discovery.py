@@ -11,6 +11,7 @@ from pullback.discovery import (
     ZbMathOpenDiscoveryClient,
 )
 from pullback.discovery.arxiv.ids import extract_arxiv_id_from_text, normalize_arxiv_id
+from pullback.discovery.arxiv.paper_metadata import PaperMetadata
 
 
 def test_extract_arxiv_id_from_text_handles_url_and_versions() -> None:
@@ -96,6 +97,35 @@ class _GenericFailingProvider:
         raise DiscoveryAccessError("temporary upstream failure")
 
 
+class _TimeoutFallbackProvider:
+    def __init__(self) -> None:
+        self.fallback_calls: list[str] = []
+
+    async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
+        _ = query, max_results
+        await asyncio.sleep(0.05)
+        return ["2401.99999"]
+
+    async def discover_arxiv_ids_fallback(self, query: str, max_results: int, *, reason: str) -> list[str]:
+        self.fallback_calls.append(f"{reason}:{query}:{max_results}")
+        return ["2401.77777"]
+
+
+class _TitleCandidateProvider:
+    def __init__(self) -> None:
+        self._metadata = {"2401.00001": PaperMetadata(title="Known title", authors=["Alice"])}
+
+    async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
+        _ = query, max_results
+        return []
+
+    def title_candidates(self) -> list[str]:
+        return ["Banach fixed point theorem"]
+
+    def discovery_metadata(self) -> dict[str, PaperMetadata]:
+        return dict(self._metadata)
+
+
 def test_chained_discovery_fills_from_backup_provider() -> None:
     chain = ChainedDiscoveryClient(
         providers=[
@@ -128,6 +158,42 @@ def test_chained_discovery_times_out_provider_and_uses_next() -> None:
     )
     result = asyncio.run(chain.discover_arxiv_ids("banach", 1))
     assert result == ["2501.00002"]
+
+
+def test_chained_discovery_uses_provider_fallback_capability_on_timeout() -> None:
+    provider = _TimeoutFallbackProvider()
+    chain = ChainedDiscoveryClient(
+        providers=[("timeout_provider", provider)],
+        provider_timeout_seconds=0.01,
+    )
+
+    result = asyncio.run(chain.discover_arxiv_ids("banach", 1))
+    assert result == ["2401.77777"]
+    assert provider.fallback_calls == ["timeout:banach:1"]
+
+
+def test_chained_discovery_uses_title_candidate_capability_without_private_attrs(monkeypatch) -> None:
+    provider = _TitleCandidateProvider()
+    chain = ChainedDiscoveryClient(providers=[("title_provider", provider)])
+
+    async def _fake_resolver(
+        titles: list[str],
+        *,
+        max_results: int,
+        timeout_seconds: float = 10.0,
+        limiter=None,
+        query_cache=None,
+        abs_title_cache=None,
+        web_search=None,
+    ) -> list[str]:
+        _ = timeout_seconds, limiter, query_cache, abs_title_cache, web_search
+        assert titles == ["Banach fixed point theorem"]
+        assert max_results == 2
+        return ["1511.04069"]
+
+    monkeypatch.setattr("pullback.discovery.pipeline.resolve_titles_to_arxiv_ids", _fake_resolver)
+    result = asyncio.run(chain.discover_arxiv_ids("banach", 2))
+    assert result == ["1511.04069"]
 
 
 def test_chained_discovery_keeps_fallback_on_provider_failures() -> None:

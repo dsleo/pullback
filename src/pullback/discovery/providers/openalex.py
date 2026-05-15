@@ -9,7 +9,8 @@ import httpx
 from ...observability import get_logger, trace_span
 from ..base import DiscoveryAccessError, PaperDiscoveryClient
 from ..arxiv.ids import dedupe_preserve, extract_arxiv_id_from_text, normalize_arxiv_id
-from ..arxiv.metadata import PaperMetadata
+from ..arxiv.paper_metadata import PaperMetadata
+from ..arxiv.recovery.title_candidates import extract_title_candidates
 
 log = get_logger("discovery.openalex")
 OPENALEX_WORKS_URL = "https://api.openalex.org/works"
@@ -32,9 +33,16 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
         self._timeout_seconds = timeout_seconds
         self._mailto = mailto
         self._last_metadata: dict[str, PaperMetadata] = {}
+        self._last_title_candidates: list[str] = []
 
     def _backoff_seconds(self, attempt: int) -> float:
         return min(self._BACKOFF_BASE_SECONDS * (2**attempt), 30.0)
+
+    def discovery_metadata(self) -> dict[str, PaperMetadata]:
+        return dict(self._last_metadata)
+
+    def title_candidates(self) -> list[str]:
+        return list(self._last_title_candidates)
 
     @staticmethod
     def _retry_after_from_response(response: httpx.Response) -> float | None:
@@ -279,6 +287,8 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
     async def discover_arxiv_ids(self, query: str, max_results: int) -> list[str]:
         with trace_span("discovery.openalex", query=query, max_results=max_results):
             if not query.strip():
+                self._last_metadata = {}
+                self._last_title_candidates = []
                 return []
 
             async with httpx.AsyncClient(timeout=self._timeout_seconds) as client:
@@ -291,6 +301,19 @@ class OpenAlexDiscoveryClient(PaperDiscoveryClient):
                     payload = await self._query_keyword(client, query=query, max_results=max_results)
             metadata: dict[str, PaperMetadata] = {}
             ids = self.extract_arxiv_ids_from_openalex(payload, max_results=max_results, _metadata_out=metadata)
+            # Capture a few title candidates even when we don't extract arXiv IDs.
+            try:
+                items = payload.get("results") if isinstance(payload, dict) else None
+                if isinstance(items, list):
+                    self._last_title_candidates = extract_title_candidates(
+                        [item for item in items if isinstance(item, Mapping)],
+                        title_key="title",
+                        max_titles=10,
+                    )
+                else:
+                    self._last_title_candidates = []
+            except Exception:
+                self._last_title_candidates = []
             self._last_metadata = metadata
             log.info("done count={} ids={} with_metadata={}", len(ids), ids, len(metadata))
             return ids
