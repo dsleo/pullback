@@ -42,20 +42,27 @@ Ranked results — each with the matched theorem snippet
 - `arxiv_api` — arXiv keyword/title search
 - `semantic_scholar` — Semantic Scholar API
 
-### Discovery fallback & recovery (new)
+---
 
-Discovery is optimized for returning **arXiv IDs** (so we can fetch raw LaTeX). In practice, providers may be rate-limited or return results without arXiv IDs. The pipeline now has two explicit “second chances”:
+## Pipeline details
 
-- **Provider-internal fallback (per provider)**  
-  Example: `arxiv_api` first tries the arXiv export API; if it times out / rate-limits it falls back to arXiv HTML search; if that fails it falls back to a web-search backend (SerpApi) constrained to arXiv results.
+### Query planning (LLM reformulation)
+
+When `MATHGENT_AGENTIC=1`, the Librarian expands the original query into a small set of diverse reformulations (paper-style, statement-style, keyword-style). These variants are what get sent to discovery providers. The UI streams these variants as they are planned.
+
+You can reduce variability for evaluation by disabling the planner (`MATHGENT_LIBRARIAN_MODEL=test`) or limiting attempts (`MATHGENT_MAX_QUERY_ATTEMPTS=1`).
+
+### Discovery fallback & recovery
+
+Discovery is optimized for returning **arXiv IDs** (so we can fetch raw LaTeX). In practice, providers may be rate-limited or return results without arXiv IDs. The pipeline has two explicit “second chances”:
+
+- **Provider-internal fallback**  
+  Example: `arxiv_api` first tries the arXiv export API; if it times out / rate-limits it falls back to arXiv HTML search; if that fails it falls back to a web-search backend constrained to arXiv results.
 
 - **Title → arXiv ID recovery (cross-provider)**  
-  If a provider returns *no arXiv IDs*, it can still expose `title_candidates()` (paper titles). The pipeline can then resolve titles to arXiv IDs via an arXiv-only resolver that:
+  If a provider returns *no arXiv IDs*, it still exposes `title_candidates()`. The pipeline can then resolve titles to arXiv IDs via an arXiv-only resolver that:
   1) searches for the title (preferring web-search when configured), and  
   2) **verifies** a candidate by checking the arXiv abstract-page title matches (normalized).
-
-To make this observable in production, discovery emits state-machine-like log lines such as:
-`provider.cache_hit`, `provider.cache_store`, `provider.fallback_start`, `provider.fallback_done`, `provider.fallback_failed`, `provider.timeout`, `provider.degraded`.
 
 ---
 
