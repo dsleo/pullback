@@ -1,4 +1,9 @@
-"""Vercel API entrypoint for the Pullback demo."""
+"""Vercel API entrypoint for the Pullback demo.
+
+Source of truth for the demo UI is `demo/static/*` (used by `demo/app.py`).
+On Vercel we serve the same UI from this FastAPI app to keep local and
+deployed behavior consistent.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +14,7 @@ import sys
 
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -22,11 +28,15 @@ from pullback.settings import load_settings
 
 _settings = load_settings()
 _MAX_RESULTS = _settings.librarian.max_results
+_DEMO_STATIC_DIR = REPO_ROOT / "demo" / "static"
 _PUBLIC_DIR = REPO_ROOT / "public"
 _ASSET_VERSION = (os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("VERCEL_URL") or "dev")[:12]
 _NO_STORE = {"Cache-Control": "no-store, max-age=0"}
 
 app = FastAPI(title="The Pullback - Theorem Search")
+
+if _DEMO_STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=_DEMO_STATIC_DIR), name="static")
 
 
 def _with_asset_version(html: str) -> str:
@@ -34,19 +44,30 @@ def _with_asset_version(html: str) -> str:
         html
         .replace("/style.css", f"/style.css?v={_ASSET_VERSION}")
         .replace("/app.js", f"/app.js?v={_ASSET_VERSION}")
+        .replace("/static/style.css", f"/static/style.css?v={_ASSET_VERSION}")
+        .replace("/static/app.js", f"/static/app.js?v={_ASSET_VERSION}")
     )
 
 
 @app.get("/")
 async def root() -> HTMLResponse:
+    demo_index_path = _DEMO_STATIC_DIR / "index.html"
+    if demo_index_path.exists():
+        return HTMLResponse(_with_asset_version(demo_index_path.read_text(encoding="utf-8")), headers=_NO_STORE)
+
     index_path = _PUBLIC_DIR / "index.html"
     if index_path.exists():
         return HTMLResponse(_with_asset_version(index_path.read_text(encoding="utf-8")), headers=_NO_STORE)
+
     return HTMLResponse(_with_asset_version(INDEX_HTML), headers=_NO_STORE)
 
 
 @app.get("/app.js")
 async def app_js() -> Response:
+    # Compatibility route for older HTML that referenced /app.js.
+    demo_path = _DEMO_STATIC_DIR / "app.js"
+    if demo_path.exists():
+        return Response(demo_path.read_text(encoding="utf-8"), media_type="text/javascript", headers=_NO_STORE)
     app_js_path = _PUBLIC_DIR / "app.js"
     if app_js_path.exists():
         return Response(app_js_path.read_text(encoding="utf-8"), media_type="text/javascript", headers=_NO_STORE)
@@ -55,6 +76,10 @@ async def app_js() -> Response:
 
 @app.get("/style.css")
 async def style_css() -> Response:
+    # Compatibility route for older HTML that referenced /style.css.
+    demo_path = _DEMO_STATIC_DIR / "style.css"
+    if demo_path.exists():
+        return Response(demo_path.read_text(encoding="utf-8"), media_type="text/css", headers=_NO_STORE)
     style_path = _PUBLIC_DIR / "style.css"
     if style_path.exists():
         return Response(style_path.read_text(encoding="utf-8"), media_type="text/css", headers=_NO_STORE)

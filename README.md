@@ -44,6 +44,26 @@ Ranked results — each with the matched theorem snippet
 
 ---
 
+## Pipeline details
+
+### Query planning (LLM reformulation)
+
+In agentic mode, the Librarian expands the original query into a small set of diverse reformulations (paper-style, statement-style, keyword-style). These variants are what get sent to discovery providers. The UI streams these variants as they are planned.
+
+### Discovery fallback & recovery
+
+Discovery is optimized for returning **arXiv IDs** (so we can fetch raw LaTeX). In practice, providers may be rate-limited or return results without arXiv IDs. The pipeline has two explicit “second chances”:
+
+- **Provider-internal fallback**  
+  Example: `arxiv_api` first tries the arXiv export API; if it times out / rate-limits it falls back to arXiv HTML search; if that fails it falls back to a web-search backend constrained to arXiv results.
+
+- **Title → arXiv ID recovery (cross-provider)**  
+  If a provider returns *no arXiv IDs*, it still exposes `title_candidates()`. The pipeline can then resolve titles to arXiv IDs via an arXiv-only resolver that:
+  1) searches for the title (preferring web-search when configured), and  
+  2) **verifies** a candidate by checking the arXiv abstract-page title matches (normalized).
+
+---
+
 ## Quick Start
 
 ### Option A — Live Demo (browser)
@@ -65,25 +85,6 @@ python demo/app.py
 
 The demo streams the full pipeline in real time: query reformulation → provider discovery → per-paper foraging → ranked results. Each paper card shows the matched theorem snippet, score, and a direct link to the arXiv page. An **ⓘ** icon reveals advanced details (per-query attribution, strategy labels, raw scores).
 
-### Deploy — Vercel (FastAPI + SSE)
-
-This repo includes a Vercel-ready entrypoint:
-
-- `app.py` (FastAPI `app` instance)
-- `public/**` (static assets served by Vercel CDN)
-- `requirements.txt` (for Vercel's Python runtime)
-
-On Vercel:
-
-1. Import the Git repo as a new project
-2. Set Environment Variables (at minimum):
-   - `OPENAI_API_KEY` (LLM + reranker)
-   - `E2B_API_KEY` (LaTeX extraction sandbox; required unless you run local TeX mode)
-   - Optional: `OPENALEX_API_KEY`, `OPENALEX_MAILTO`, `SEMANTIC_SCHOLAR_API_KEY`
-3. Deploy
-
----
-
 ### Option B — HTTP API
 
 ```bash
@@ -104,7 +105,7 @@ curl -X POST http://127.0.0.1:8000/search \
   -d '{"query": "Banach fixed point theorem", "max_results": 5, "strictness": 0.2}'
 ```
 
-### Option B — Direct Python usage
+### Option C — Direct Python usage
 
 ```python
 import asyncio
@@ -186,6 +187,7 @@ python scripts/eval_benchmark.py \
 | `E2B_API_KEY` | Yes² | Fetch arXiv LaTeX sources via E2B sandbox |
 | `OPENALEX_API_KEY` | Optional | Higher rate limits on OpenAlex discovery |
 | `OPENALEX_MAILTO` | Optional | Polite-pool access for OpenAlex (your email) |
+| `SERP_API_KEY` | Optional | Web-search fallback for arXiv discovery + title→arXiv-ID recovery |
 
 ¹ **OpenAI or OpenRouter** — set `MATHGENT_LIBRARIAN_MODEL` accordingly:
   - `openai:gpt-4o-mini` → uses `OPENAI_API_KEY`
@@ -196,41 +198,6 @@ python scripts/eval_benchmark.py \
 ² Not needed if you supply a local TeX cache via `MATHGENT_LOCAL_TEX_DIR`. See [data/tex_cache/README.md](data/tex_cache/README.md).
 
 > **Minimal free setup** — `MATHGENT_AGENTIC=0`, `MATHGENT_LIBRARIAN_MODEL=test`, `MATHGENT_RERANKER=token_overlap`, and a local TeX dir. No API keys required.
-
----
-
-## Request & Response
-
-```json
-// POST /search
-{
-  "query": "Banach fixed point theorem for non-reflexive spaces",
-  "max_results": 5,
-  "strictness": 0.2
-}
-```
-
-```json
-// Response
-{
-  "results": [
-    {
-      "arxiv_id": "2509.13121",
-      "title": "On fixed points in Banach spaces",
-      "authors": ["J. Smith"],
-      "match": {
-        "header_line": "\\begin{theorem}[Main]",
-        "snippet": "Let $X$ be a Banach space and $T: X \\to X$ a contraction...",
-        "score": 0.62
-      }
-    }
-  ]
-}
-```
-
-**Parameters:**
-- `strictness` `[0.0–1.0]` — minimum relevance score to return a result. Start at `0.2`.
-- `max_results` — number of papers to return (default 5, max 20).
 
 ---
 
@@ -270,6 +237,8 @@ src/mathgent/
 ├── orchestration/    LibrarianOrchestrator, QueryPlannerService
 ├── discovery/        Provider adapters (OpenAlex, zbMATH, arXiv, Semantic Scholar)
 │   └── providers/
+│   └── arxiv/recovery/   Title→arXiv-ID recovery + verification
+│   └── cache/            Shared cache utilities (TTL, etc.)
 ├── extraction/       HeaderGrepper, BoundedBlockExtractor, theorem numbering
 ├── agents/           ForagerAgent (per-paper extraction + scoring)
 ├── rerank/           Reranker backends (token overlap, BGE, ColBERT, OpenAI, hybrid)
@@ -278,6 +247,24 @@ src/mathgent/
 ├── tools/            Agent tool facades (discovery, extraction)
 └── observability/    Loguru logging, Logfire tracing, hook registry
 ```
+
+---
+### Deploy — Vercel (FastAPI + SSE)
+
+This repo includes a Vercel-ready entrypoint:
+
+- `app.py` (FastAPI `app` instance)
+- `public/**` (static assets served by Vercel CDN)
+- `requirements.txt` (for Vercel's Python runtime)
+
+On Vercel:
+
+1. Import the Git repo as a new project
+2. Set Environment Variables (at minimum):
+   - `OPENAI_API_KEY` (LLM + reranker)
+   - `E2B_API_KEY` (LaTeX extraction sandbox; required unless you run local TeX mode)
+   - Optional: `OPENALEX_API_KEY`, `OPENALEX_MAILTO`, `SEMANTIC_SCHOLAR_API_KEY`
+3. Deploy
 
 ---
 

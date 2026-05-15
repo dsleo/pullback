@@ -187,12 +187,20 @@ class QueryPlannerService:
             self._timeout_seconds,
             self._max_query_attempts,
         )
+        # Be explicit: include the original query as slot 0, then generate (N-1)
+        # distinct variants. Some models interpret "up to N" as "1 is fine".
+        variant_count = max(0, self._max_query_attempts - 1)
         prompt = (
             f"Original query: {base}\n"
-            f"Generate up to {self._max_query_attempts} search queries using the strategies in your instructions.\n"
-            "Each query must use a DIFFERENT strategy and be lexically distinct from the others.\n"
+            f"Return a JSON object with a 'queries' list of length {1 + variant_count}.\n"
+            "- queries[0] MUST be exactly the original query.\n"
+            f"- Generate exactly {variant_count} additional queries in queries[1:]\n"
+            "  (do not repeat the original, and do not leave blanks).\n"
+            "Each additional query must use a DIFFERENT strategy and be lexically distinct from the others.\n"
             "Do NOT produce minor rewrites — each query should look like it was written by someone "
             "approaching the problem from a completely different angle.\n"
+            "If you are unsure about author/entity attribution, use a different safe strategy instead "
+            "(do not reduce the number of queries).\n"
             "Respond only with the JSON object containing queries."
         )
         try:

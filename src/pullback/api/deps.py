@@ -25,8 +25,10 @@ from ..discovery import (
     SemanticScholarDiscoveryClient,
     PaperMetadataFetcher,
     PaperDiscoveryClient,
+    WebSearchArxivDiscoveryClient,
     fetch_arxiv_metadata,
 )
+from ..discovery.providers.web_search_backends.serpapi import SerpApiWebSearchBackend
 
 from ..tools import ExtractionTools
 
@@ -51,6 +53,7 @@ class _RuntimeDeps:
 def _build_discovery_layer(settings: AppSettings) -> tuple[PaperDiscoveryClient, list[str]]:
     providers: list[tuple[str, DiscoveryProvider]] = []
     raw_only_provider_names: list[str] = []
+    web_search_fallback = WebSearchArxivDiscoveryClient(backend=SerpApiWebSearchBackend())
 
     for name in settings.discovery.providers:
         if name == "openalex":
@@ -107,7 +110,12 @@ def _build_discovery_layer(settings: AppSettings) -> tuple[PaperDiscoveryClient,
             providers.append(
                 (
                     "arxiv_api",
-                    ArxivAPIDiscoveryClient(timeout_seconds=settings.discovery.timeout_seconds),
+                    # Give the provider itself a generous timeout; the chain will
+                    # still cap variant queries via `provider_timeout_seconds`.
+                    ArxivAPIDiscoveryClient(
+                        timeout_seconds=max(settings.discovery.timeout_seconds, 45.0),
+                        web_fallback=web_search_fallback,
+                    ),
                 )
             )
             continue
@@ -139,10 +147,17 @@ def _build_discovery_layer(settings: AppSettings) -> tuple[PaperDiscoveryClient,
         log.warning("discovery.provider_unknown provider={}", name)
 
     provider_timeout_seconds = settings.discovery.provider_timeout_seconds
+    # Longer timeout for the *original* (raw) query on arXiv export API, since it
+    # is often the most valuable source and can be slow/rate-limited.
+    raw_query_provider_timeout_seconds = {
+        "arxiv_api": max(provider_timeout_seconds, 45.0),
+    }
     chain = ChainedDiscoveryClient(
         providers=providers,
         provider_timeout_seconds=provider_timeout_seconds,
+        raw_query_provider_timeout_seconds=raw_query_provider_timeout_seconds,
         raw_only_providers=frozenset(raw_only_provider_names),
+        title_recovery_web_search=web_search_fallback,
     )
     active = [name for name, _ in providers]
     log.info(
