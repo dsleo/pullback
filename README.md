@@ -50,8 +50,6 @@ Ranked results — each with the matched theorem snippet
 
 When `MATHGENT_AGENTIC=1`, the Librarian expands the original query into a small set of diverse reformulations (paper-style, statement-style, keyword-style). These variants are what get sent to discovery providers. The UI streams these variants as they are planned.
 
-You can reduce variability for evaluation by disabling the planner (`MATHGENT_LIBRARIAN_MODEL=test`) or limiting attempts (`MATHGENT_MAX_QUERY_ATTEMPTS=1`).
-
 ### Discovery fallback & recovery
 
 Discovery is optimized for returning **arXiv IDs** (so we can fetch raw LaTeX). In practice, providers may be rate-limited or return results without arXiv IDs. The pipeline has two explicit “second chances”:
