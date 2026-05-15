@@ -3,82 +3,28 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
-from collections import OrderedDict
 import os
 import re
-import threading
-import time
 from typing import Awaitable, Callable
 
 import arxiv
 import httpx
 
 from ...observability import get_logger
+from ..cache import ThreadSafeTTLCache
 from .ids import extract_arxiv_id_from_text, normalize_arxiv_id
+from .paper_metadata import PaperMetadata
 
 log = get_logger("discovery.arxiv_metadata")
-
-
-@dataclass(frozen=True)
-class PaperMetadata:
-    title: str | None = None
-    authors: list[str] = field(default_factory=list)
-    year: int | None = None
-    cited_by_count: int | None = None
 
 
 PaperMetadataFetcher = Callable[[list[str]], Awaitable[dict[str, PaperMetadata]]]
 
 _DEFAULT_CACHE_TTL_S = 60 * 60 * 24  # 1 day
 _DEFAULT_CACHE_MAX = 4000
-
-
-class _TTLCache:
-    """Tiny in-memory TTL cache for serverless environments (e.g. Vercel).
-
-    It persists only for the lifetime of a warm instance. That's intentional:
-    it is a light, dependency-free best-effort cache to reduce bursty upstream
-    calls and rate-limiting.
-    """
-
-    def __init__(self, *, ttl_seconds: float, max_entries: int) -> None:
-        self._ttl_seconds = max(0.0, float(ttl_seconds))
-        self._max_entries = max(0, int(max_entries))
-        self._lock = threading.Lock()
-        self._data: "OrderedDict[str, tuple[float, PaperMetadata]]" = OrderedDict()
-
-    def get(self, key: str) -> PaperMetadata | None:
-        if self._ttl_seconds <= 0 or self._max_entries <= 0:
-            return None
-        now = time.time()
-        with self._lock:
-            item = self._data.get(key)
-            if item is None:
-                return None
-            expires_at, value = item
-            if expires_at <= now:
-                self._data.pop(key, None)
-                return None
-            self._data.move_to_end(key)
-            return value
-
-    def set_many(self, values: dict[str, PaperMetadata]) -> None:
-        if self._ttl_seconds <= 0 or self._max_entries <= 0 or not values:
-            return
-        now = time.time()
-        expires_at = now + self._ttl_seconds
-        with self._lock:
-            for k, v in values.items():
-                self._data[k] = (expires_at, v)
-                self._data.move_to_end(k)
-            while len(self._data) > self._max_entries:
-                self._data.popitem(last=False)
-
-
-_META_CACHE = _TTLCache(
-    ttl_seconds=float(os.getenv("PULLBACK_METADATA_CACHE_TTL_S", str(_DEFAULT_CACHE_TTL_S))),
-    max_entries=int(os.getenv("PULLBACK_METADATA_CACHE_MAX", str(_DEFAULT_CACHE_MAX))),
+_META_CACHE = ThreadSafeTTLCache[str, PaperMetadata](
+    ttl=float(os.getenv("PULLBACK_METADATA_CACHE_TTL_S", str(_DEFAULT_CACHE_TTL_S))),
+    maxsize=int(os.getenv("PULLBACK_METADATA_CACHE_MAX", str(_DEFAULT_CACHE_MAX))),
 )
 
 
