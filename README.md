@@ -48,7 +48,7 @@ Ranked results — each with the matched theorem snippet
 
 ### Query planning (LLM reformulation)
 
-When `MATHGENT_AGENTIC=1`, the Librarian expands the original query into a small set of diverse reformulations (paper-style, statement-style, keyword-style). These variants are what get sent to discovery providers. The UI streams these variants as they are planned.
+In agentic mode, the Librarian expands the original query into a small set of diverse reformulations (paper-style, statement-style, keyword-style). These variants are what get sent to discovery providers. The UI streams these variants as they are planned.
 
 ### Discovery fallback & recovery
 
