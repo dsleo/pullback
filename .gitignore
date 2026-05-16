@@ -28,3 +28,4 @@ configs/ITERATIONS.jsonl
 scripts/eval_*.sh
 scripts/validate_remaining_*.py
 .claude/
+CLAUDE.md
