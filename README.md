@@ -4,6 +4,9 @@ Agentic search engine for mathematical theorems and lemmas over arXiv LaTeX sour
 
 ---
 
+<img width="1309" height="741" alt="pullback" src="https://github.com/user-attachments/assets/26a1fd83-3444-48e9-a591-ea244ec74e58" />
+
+---
 ## How It Works
 
 ```
